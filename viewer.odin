@@ -1,20 +1,20 @@
-package drawsvg
+package savage
 
 // Components
 // - 1. Platform layer
 // - 2. Software renderer
-// - 3. Hardware renderer
+// - 3. GPU renderer
 
 // TODO Checklist from drawsvg reference:
 
 // 1: Callbacks in viewer
 //   - [x] err callback
 //   - [x] resize callback: update buffer size
-//   - wire callbacks to renderer via GetWindowUserPointer (char/cursor/scroll/mouse/resize)
-//   - key_callback: ESC -> SetWindowShouldClose
-//   - viewer_update: run user renderer (renderer.render) + draw info/OSD
-//   - cleanup: glfw.DestroyWindow + glfw.Terminate on exit
-//   - clear color set in viewer_update (currently teal placeholder)
+//   - [x] key callback
+//   - [ ] char callback
+//   - [ ] mouse button callback
+//   - [ ] scroll callback
+//   - [ ] cursor callback
 //
 // TODO(architecture): treat Viewer as the "platform layer" (a la Handmade Hero).
 //   Move presentation into Viewer: define Backbuffer{ pixels, w, h } that Viewer
@@ -41,7 +41,6 @@ TITLE :: "savage"
 GL_MAJOR_VERSION :: 3
 GL_MINOR_VERSION :: 3
 
-
 Color :: [4]u8
 
 Buffer :: struct {
@@ -58,11 +57,13 @@ Viewer :: struct {
 	texture_id:            u32,
 	framebuffer_id:        u32,
 	window_resized:        bool,
+	input: Input,
 	start_time:            time.Tick,
 	time_elapsed:          time.Duration,
 	last_frame_time:       time.Tick,
 	show_info:             bool,
 }
+
 
 viewer_err_callback :: proc "c" (error: c.int, description: cstring) {
 	context = runtime.default_context()
@@ -77,15 +78,21 @@ viewer_key_callback :: proc "c" (
 	mods: i32,
 ) {
 	viewer := (^Viewer)(glfw.GetWindowUserPointer(window))
-	if (action == glfw.PRESS) {
-		if (key == glfw.KEY_ESCAPE) {
+	if action == glfw.PRESS {
+		if key == glfw.KEY_ESCAPE {
 			glfw.SetWindowShouldClose(window, true)
-		} else if (key == glfw.KEY_GRAVE_ACCENT) {
+		} else if key == glfw.KEY_GRAVE_ACCENT {
 			viewer.show_info = !viewer.show_info
 		}
 	}
 
-	// TODO: send key events to the app
+	// NOTE: REPEAT events are ignored
+	key_id := Key(key)
+	if action == glfw.PRESS || action == glfw.RELEASE {
+		viewer.input.keys[key_id].half_transition_count += 1
+		viewer.input.keys[key_id].ended_down = action == glfw.PRESS
+	}
+
 }
 
 allocate_buffer :: proc(buffer: ^Buffer, w: i32, h: i32) {
@@ -221,14 +228,22 @@ viewer_draw_info :: proc(viewer: ^Viewer) {
 }
 
 viewer_update :: proc(viewer: ^Viewer) {
-	// Process all incoming events (kb presses, window resize etc.)
+	// Clear input
+	for &key in viewer.input.keys {
+		key.half_transition_count = 0
+	}
+	for &b in viewer.input.mouse_btn {
+		b.half_transition_count = 0
+	}
+
+	// Process all incoming events via callbacks (input, resizes etc.)
 	glfw.PollEvents()
 	if viewer.window_resized {
 		refresh_buffer(viewer)
 	}
 
 	// Let the App update the buffer
-	app_update_and_render(&viewer.buffer, viewer.start_time)
+	app_update_and_render(&viewer.buffer, viewer.start_time, viewer.input)
 
 	// Clear background
 	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
@@ -248,7 +263,7 @@ viewer_update :: proc(viewer: ^Viewer) {
 		raw_data(viewer.buffer.data),
 	)
 
-	//
+	// Blit to Framebuffer 0
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, viewer.framebuffer_id)
 	gl.BlitFramebuffer(
 		0,
@@ -270,7 +285,6 @@ viewer_update :: proc(viewer: ^Viewer) {
 
 	// Swap Buffers
 	glfw.SwapBuffers(viewer.window)
-
 
 }
 

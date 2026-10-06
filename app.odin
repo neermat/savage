@@ -1,10 +1,18 @@
-package drawsvg
+package savage
 
 import "core:fmt"
 import "core:time"
 import "core:math/rand"
 
-app_update_and_render :: proc(buffer: ^Buffer, start_time: time.Tick) {
+app_update_and_render :: proc(buffer: ^Buffer, start_time: time.Tick, input: Input) {
+	// test input
+	for k in Key {
+		key := input.keys[k]
+		if key.half_transition_count > 0 {
+			fmt.printfln("Key %v: %v", k, key)
+		}
+	}
+
 	//color : Color
 	//t := time.duration_seconds(time.tick_since(start_time))
 	//color.b = u8((0.5 + 0.5 * math.sin(t)) * 255)
