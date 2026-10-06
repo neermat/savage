@@ -9,7 +9,7 @@ package drawsvg
 
 // 1: Callbacks in viewer
 //   - [x] err callback
-//   - [ ] resize callback: update buffer size
+//   - [x] resize callback: update buffer size
 //   - wire callbacks to renderer via GetWindowUserPointer (char/cursor/scroll/mouse/resize)
 //   - key_callback: ESC -> SetWindowShouldClose
 //   - viewer_update: run user renderer (renderer.render) + draw info/OSD
@@ -51,16 +51,17 @@ Buffer :: struct {
 }
 
 Viewer :: struct {
-	window:          glfw.WindowHandle,
-	buffer:          Buffer,
-	pixel_scale:     [2]u32,
-	texture_id:      u32,
-	framebuffer_id:  u32,
-	window_resized:  bool,
-	start_time:      time.Tick,
-	time_elapsed:    time.Duration,
-	last_frame_time: time.Tick,
-	show_info:       bool,
+	window:                glfw.WindowHandle,
+	buffer:                Buffer,
+	pixel_scale:           [2]u32,
+	blit_destination_size: [2]i32,
+	texture_id:            u32,
+	framebuffer_id:        u32,
+	window_resized:        bool,
+	start_time:            time.Tick,
+	time_elapsed:          time.Duration,
+	last_frame_time:       time.Tick,
+	show_info:             bool,
 }
 
 viewer_err_callback :: proc "c" (error: c.int, description: cstring) {
@@ -114,6 +115,8 @@ refresh_buffer :: proc(viewer: ^Viewer) {
 	w, h := glfw.GetFramebufferSize(viewer.window)
 	viewer.buffer.w = i32(math.ceil(f32(w) / f32(viewer.pixel_scale.x)))
 	viewer.buffer.h = i32(math.ceil(f32(h) / f32(viewer.pixel_scale.y)))
+	viewer.blit_destination_size.x = viewer.buffer.w * i32(viewer.pixel_scale.x)
+	viewer.blit_destination_size.y = viewer.buffer.h * i32(viewer.pixel_scale.y)
 	allocate_buffer(&viewer.buffer, w, h)
 	gl.BindTexture(gl.TEXTURE_2D, viewer.texture_id)
 	gl.TexImage2D(
@@ -132,11 +135,13 @@ refresh_buffer :: proc(viewer: ^Viewer) {
 		window_w, window_h := glfw.GetWindowSize(viewer.window)
 		fmt.eprintfln("[WindowRefresh] FBO complete!  FB Status: %v", fb_status)
 		fmt.printfln(
-			"[WindowRefresh] Window: [%v, %v], User Buffer: [%v, %v], GL Frame Buffer: [%v, %v]!",
+			"[WindowRefresh] Window: [%v, %v], Buffer: [%v, %v] / [%v, %v], GL Frame Buffer: [%v, %v]!",
 			window_w,
 			window_h,
 			viewer.buffer.w,
 			viewer.buffer.h,
+			viewer.blit_destination_size.x,
+			viewer.blit_destination_size.y,
 			w,
 			h,
 		)
@@ -216,13 +221,20 @@ viewer_draw_info :: proc(viewer: ^Viewer) {
 }
 
 viewer_update :: proc(viewer: ^Viewer) {
+	// Process all incoming events (kb presses, window resize etc.)
 	glfw.PollEvents()
 	if viewer.window_resized {
 		refresh_buffer(viewer)
 	}
+
+	// Let the App update the buffer
 	app_update_and_render(&viewer.buffer, viewer.start_time)
+
+	// Clear background
 	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+	// Upload Buffer to GPU
 	gl.BindTexture(gl.TEXTURE_2D, viewer.texture_id)
 	gl.TexSubImage2D(
 		gl.TEXTURE_2D,
@@ -235,16 +247,17 @@ viewer_update :: proc(viewer: ^Viewer) {
 		gl.UNSIGNED_BYTE,
 		raw_data(viewer.buffer.data),
 	)
+
+	//
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, viewer.framebuffer_id)
-	fb_w, fb_h := glfw.GetFramebufferSize(viewer.window)
 	gl.BlitFramebuffer(
 		0,
 		0,
 		viewer.buffer.w,
 		viewer.buffer.h,
 		0,
-		fb_h,
-		fb_w,
+		viewer.blit_destination_size.y,
+		viewer.blit_destination_size.x,
 		0,
 		gl.COLOR_BUFFER_BIT,
 		gl.NEAREST,
@@ -255,7 +268,7 @@ viewer_update :: proc(viewer: ^Viewer) {
 		viewer_draw_info(viewer)
 	}
 
-	// swap buffers
+	// Swap Buffers
 	glfw.SwapBuffers(viewer.window)
 
 
