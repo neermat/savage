@@ -5,24 +5,6 @@ package savage
 // - 2. Software renderer
 // - 3. GPU renderer
 
-// TODO Checklist from drawsvg reference:
-
-// 1: Callbacks in viewer
-//   - [x] err callback
-//   - [x] resize callback: update buffer size
-//   - [x] key callback
-//   - [ ] char callback
-//   - [ ] mouse button callback
-//   - [ ] scroll callback
-//   - [ ] cursor callback
-//
-// TODO(architecture): treat Viewer as the "platform layer" (a la Handmade Hero).
-//   Move presentation into Viewer: define Backbuffer{ pixels, w, h } that Viewer
-//   owns and blits (GL texture + fullscreen quad). SoftwareRenderer only FILLS
-//   the buffer and never touches GL. Keeps the app layer graphics-API-agnostic.
-//   (Longer term: app emits a render-command list; platform executes it SW or HW.)
-
-
 import "base:runtime"
 import "core:c"
 import "core:fmt"
@@ -57,7 +39,7 @@ Viewer :: struct {
 	texture_id:            u32,
 	framebuffer_id:        u32,
 	window_resized:        bool,
-	input: Input,
+	input:                 Input,
 	start_time:            time.Tick,
 	time_elapsed:          time.Duration,
 	last_frame_time:       time.Tick,
@@ -87,12 +69,42 @@ viewer_key_callback :: proc "c" (
 	}
 
 	// NOTE: REPEAT events are ignored
+	// TODO: Add modifier support
 	key_id := Key(key)
 	if action == glfw.PRESS || action == glfw.RELEASE {
 		viewer.input.keys[key_id].half_transition_count += 1
 		viewer.input.keys[key_id].ended_down = action == glfw.PRESS
 	}
+}
 
+viewer_mouse_button_callback :: proc "c" (
+	window: glfw.WindowHandle,
+	button: i32,
+	action: i32,
+	mods: i32,
+) {
+	// NOTE: Only three buttons are supported
+	viewer := (^Viewer)(glfw.GetWindowUserPointer(window))
+	btn_id := MouseButton(button)
+	if action == glfw.PRESS || action == glfw.RELEASE {
+		viewer.input.mouse_btn[btn_id].half_transition_count += 1
+		viewer.input.mouse_btn[btn_id].ended_down = action == glfw.PRESS
+	}
+}
+
+viewer_cursor_callback :: proc "c" (window: glfw.WindowHandle, xpos: f64, ypos: f64) {
+	// NOTE: only keeping last position for now
+	// User coords conversion in update loop
+	viewer := (^Viewer)(glfw.GetWindowUserPointer(window))
+	xscale, yscale := glfw.GetWindowContentScale(viewer.window)
+	viewer.input.mouse_pos.x = f32(xpos) * xscale / f32(viewer.pixel_scale.x)
+	viewer.input.mouse_pos.y = f32(ypos) * yscale / f32(viewer.pixel_scale.y)
+}
+
+viewer_scroll_callback :: proc "c" (window: glfw.WindowHandle, xoffset: f64, yoffset: f64) {
+	viewer := (^Viewer)(glfw.GetWindowUserPointer(window))
+	viewer.input.scroll.x += f32(xoffset)
+	viewer.input.scroll.y += f32(yoffset)
 }
 
 allocate_buffer :: proc(buffer: ^Buffer, w: i32, h: i32) {
@@ -208,6 +220,9 @@ viewer_init :: proc(viewer: ^Viewer) {
 
 	// attach callbacks
 	glfw.SetKeyCallback(viewer.window, viewer_key_callback)
+	glfw.SetMouseButtonCallback(viewer.window, viewer_mouse_button_callback)
+	glfw.SetScrollCallback(viewer.window, viewer_scroll_callback)
+	glfw.SetCursorPosCallback(viewer.window, viewer_cursor_callback)
 	glfw.SetFramebufferSizeCallback(viewer.window, viewer_resize_callback)
 
 	init_buffer(viewer)
@@ -235,6 +250,7 @@ viewer_update :: proc(viewer: ^Viewer) {
 	for &b in viewer.input.mouse_btn {
 		b.half_transition_count = 0
 	}
+	viewer.input.scroll = {}
 
 	// Process all incoming events via callbacks (input, resizes etc.)
 	glfw.PollEvents()

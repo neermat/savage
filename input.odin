@@ -1,11 +1,12 @@
 package savage
 
+// TODO: Add support for typed text
 Input :: struct {
-	dt:          f32,
-	mouse_pos:   [2]f32,
-	mouse_wheel: f32,
-	mouse_btn:   [MouseButton]Button,
-	keys:        #sparse[Key]Button,
+	dt:        f32,
+	mouse_pos: [2]f32,
+	mouse_btn: [MouseButton]Button,
+	scroll:    [2]f32,
+	keys:      #sparse[Key]Button,
 }
 
 Button :: struct {
