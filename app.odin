@@ -79,7 +79,7 @@ app_update_and_render :: proc(buffer: ^Buffer, start_time: time.Tick) {
     //draw_element_sr(line7, buffer)
     //draw_element_sr(line8, buffer)
     //draw_element_sr(line9, buffer)
-    n := 10 
+    n := 10
     polyline: Polyline
     polyline.points = make([]vec2, n)
     rand.reset(1)
@@ -92,6 +92,21 @@ app_update_and_render :: proc(buffer: ^Buffer, start_time: time.Tick) {
         style = Style{stroke_color  = {255, 200, 0, 255}}
     }
     draw_element_sr(polyline_elm, buffer)
+
+    // n := 10
+    // polygon: Polygon
+    // polygon.points = make([]vec2, n)
+    // rand.reset(1)
+    // for i in 0..<n {
+    //     polygon.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
+    //     polygon.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
+    // }
+    // polygon_elm: Element = {
+    //     shape = polygon,
+    //     style = Style{stroke_color  = {255, 200, 0, 255}}
+    // }
+    // draw_element_sr(polygon_elm, buffer)
+
     //draw_element_sr(bg_rect_elem, buffer)
     //draw_element_sr(rect_elem, buffer)
 	//points : [3]vec2 = {
