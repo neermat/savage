@@ -41,8 +41,8 @@ Viewer :: struct {
 	window_resized:        bool,
 	input:                 Input,
 	start_time:            time.Tick,
-	time_elapsed:          time.Duration,
-	last_frame_time:       time.Tick,
+	frame_tick:            time.Tick,
+	time_since_start:      time.Duration,
 	show_info:             bool,
 }
 
@@ -60,6 +60,7 @@ viewer_key_callback :: proc "c" (
 	mods: i32,
 ) {
 	viewer := (^Viewer)(glfw.GetWindowUserPointer(window))
+	context = runtime.default_context()
 	if action == glfw.PRESS {
 		if key == glfw.KEY_ESCAPE {
 			glfw.SetWindowShouldClose(window, true)
@@ -70,10 +71,21 @@ viewer_key_callback :: proc "c" (
 
 	// NOTE: REPEAT events are ignored
 	// TODO: Add modifier support
+	if key == glfw.KEY_UNKNOWN do return
 	key_id := Key(key)
 	if action == glfw.PRESS || action == glfw.RELEASE {
 		viewer.input.keys[key_id].half_transition_count += 1
 		viewer.input.keys[key_id].ended_down = action == glfw.PRESS
+		key_event: KeyEvent = {
+			key    = key_id,
+			action = KeyAction(action),
+		}
+		if len(viewer.input.key_events) >= cap(viewer.input.key_events) {
+			ordered_remove(&viewer.input.key_events, 0)
+		}
+		if append(&viewer.input.key_events, key_event) != 1 {
+			fmt.eprintfln("Failed to record key event!")
+		}
 	}
 }
 
@@ -231,9 +243,8 @@ viewer_init :: proc(viewer: ^Viewer) {
 }
 
 viewer_draw_info :: proc(viewer: ^Viewer) {
-	time_elapsed_ms := time.duration_milliseconds(viewer.time_elapsed)
-	current_fps := 1000 / time_elapsed_ms
-	fmt.printfln("Time Elapsed since last frame: %.2f ms (%.0f FPS)", time_elapsed_ms, current_fps)
+	current_fps := 1 / viewer.input.dt
+	fmt.printfln("Time Elapsed since last frame: %.3f s (%.0f FPS)", viewer.input.dt, current_fps)
 	fmt.printfln(
 		"Viewer.w: %d, Viewer.h: %d, Viewer.backbuffer size: %d",
 		viewer.buffer.w,
@@ -243,6 +254,12 @@ viewer_draw_info :: proc(viewer: ^Viewer) {
 }
 
 viewer_update :: proc(viewer: ^Viewer) {
+	// Timekeeping
+	dt := f32(time.duration_seconds(time.tick_lap_time(&viewer.frame_tick)))
+	viewer.input.dt = math.clamp(dt, 1e-6, 0.1)
+	viewer.time_since_start = time.tick_since(viewer.start_time)
+	viewer.input.time = time.duration_seconds(viewer.time_since_start)
+
 	// Clear input
 	for &key in viewer.input.keys {
 		key.half_transition_count = 0
@@ -251,6 +268,7 @@ viewer_update :: proc(viewer: ^Viewer) {
 		b.half_transition_count = 0
 	}
 	viewer.input.scroll = {}
+	clear(&viewer.input.key_events)
 
 	// Process all incoming events via callbacks (input, resizes etc.)
 	glfw.PollEvents()
@@ -259,7 +277,7 @@ viewer_update :: proc(viewer: ^Viewer) {
 	}
 
 	// Let the App update the buffer
-	app_update_and_render(&viewer.buffer, viewer.start_time, viewer.input)
+	app_update_and_render(&viewer.buffer, viewer.input)
 
 	// Clear background
 	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
@@ -294,7 +312,6 @@ viewer_update :: proc(viewer: ^Viewer) {
 		gl.NEAREST,
 	)
 
-	viewer.time_elapsed = time.tick_lap_time(&viewer.last_frame_time)
 	if viewer.show_info {
 		viewer_draw_info(viewer)
 	}
