@@ -1,0 +1,14 @@
+# Editors
+.idea/
+.vscode/
+.zed/
+
+# Build output
+bin/
+debug_build
+debug_build-package
+savage
+*.dSYM/
+
+# macOS
+# .DS_Store
