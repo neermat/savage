@@ -17,6 +17,7 @@ Page :: union {
 	TrianglePage,
 	RectanglePage,
 	PolylinePage,
+	PolygonPage,
 }
 
 MainPage :: struct {}
@@ -38,6 +39,11 @@ RectanglePage :: struct {
 }
 PolylinePage :: struct {
 	polyline:        Element,
+	switch_duration: f64,
+	switch_counter:  int,
+}
+PolygonPage :: struct {
+	polygon:        Element,
 	switch_duration: f64,
 	switch_counter:  int,
 }
@@ -69,10 +75,17 @@ polyline_page := PolylinePage {
 		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
 	},
 }
+polygon_page := PolygonPage {
+	switch_duration = 2,
+	polygon = Element {
+		shape = Polygon{},
+		style = {fill_color = {180, 180, 125, 255}, stroke_color = {200, 0, 0, 255}},
+	},
+}
 coordinate_test_page := CoordinateTestPage{}
 
 app_state: AppState = {
-	page = polyline_page, // opening page
+	page = polygon_page, // opening page
 }
 
 draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
@@ -222,6 +235,44 @@ draw_polyline_page :: proc(buffer: ^Buffer, input: Input) {
 
 }
 
+draw_polygon_page :: proc(buffer: ^Buffer, input: Input) {
+	clear_buffer({0, 0, 125, 255}, buffer)
+	count := int(input.time / polygon_page.switch_duration)
+	polygon := &polygon_page.polygon.shape.(Polygon)
+	n := rand.int_range(3, 25)
+	sampled_angle: f32
+	angle_bin_size: f32 = 2 * math.PI / f32(n)
+	sampled_length: f32
+	if count != polygon_page.switch_counter || polygon.points == nil {
+		delete(polygon.points)
+		polygon.points = make([]vec2, n)
+		polygon_page.switch_counter = count
+		if count % 2 == 0 {
+			// truly random points
+			for i in 0 ..< n {
+				polygon.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
+				polygon.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
+			}
+			polygon_page.polygon.style.stroke_color = {128, 255, 0, 255}
+		} else {
+			// sampling non self-intersecting
+			for i in 0 ..< n {
+				sampled_angle = rand.float32_range(
+					f32(i) * angle_bin_size,
+					f32(i + 1) * angle_bin_size,
+				)
+				sampled_length = rand.float32_range(0.3, 0.45) * f32(math.min(buffer.w, buffer.h))
+				polygon.points[i].x =
+					0.5 * f32(buffer.w) + sampled_length * math.cos(sampled_angle)
+				polygon.points[i].y =
+					0.5 * f32(buffer.h) + sampled_length * math.sin(sampled_angle)
+			}
+			polygon_page.polygon.style.stroke_color = {255, 128, 0, 255}
+		}
+	}
+	draw_element_sr(polygon_page.polygon, buffer)
+}
+
 // for debugging purposes
 log_input :: proc(buffer: ^Buffer, input: Input) {
 	// test input
@@ -280,6 +331,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 			app_state.page = rectangle_page
 		case .Num_6:
 			app_state.page = polyline_page
+		case .Num_7:
+			app_state.page = polygon_page
 		}
 
 	}
@@ -297,6 +350,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 		draw_rectangle_page(buffer, input)
 	case PolylinePage:
 		draw_polyline_page(buffer, input)
+	case PolygonPage:
+		draw_polygon_page(buffer, input)
 	case MainPage:
 
 	}

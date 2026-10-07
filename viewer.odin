@@ -14,8 +14,8 @@ import "core:time"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
-DEFAULT_W :: 240
-DEFAULT_H :: 240
+DEFAULT_W :: 200
+DEFAULT_H :: 200
 PIXEL_SCALE_X :: 8
 PIXEL_SCALE_Y :: 8
 TITLE :: "savage"

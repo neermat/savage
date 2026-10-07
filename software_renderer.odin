@@ -2,6 +2,7 @@ package savage
 
 import "core:fmt"
 import "core:math"
+import "core:slice"
 
 vec2 :: [2]f32
 
@@ -152,45 +153,115 @@ draw_rect :: proc(rect: Rect, style: Style, target_buffer: ^Buffer) {
 	rasterize_line(p1, p3, style.stroke_color, target_buffer)
 }
 
-draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
-	fmt.println("Drawing Polygon..")
+
+ActiveEdge :: struct {
+	edge:           [2]vec2,
+	x_intersection: f32,
 }
 
-draw_polygon_ear_clipping :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
-	fmt.println("\n------------------------\n")
-	vertices := polygon.points
-	n := len(polygon.points)
-	if len(vertices) < 3 {
-		return
+get_x_intersection :: proc(line: [2]vec2, y: f32) -> f32 {
+	x1, y1 := line[0].x, line[0].y
+	x2, y2 := line[1].x, line[1].y
+	x := x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+	return x
+}
+
+edge_vertical_cmp_less :: proc(edge_a, edge_b: [2]vec2) -> bool {
+	return min(edge_a[0].y, edge_a[1].y) < min(edge_b[0].y, edge_b[1].y)
+}
+
+edge_x_intersection_cmp_less :: proc(aedge_a, aedge_b: ActiveEdge) -> bool {
+	return aedge_a.x_intersection < aedge_b.x_intersection
+}
+
+draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
+	// Reference:
+	// How the stb_truetype Anti-Aliased Software Rasterizer v2 Works
+	// https://www.nothings.org/gamedev/rasterize/
+	// 					-- Sean Barrett
+	points := polygon.points
+	n := len(points)
+
+	// 1. gather edges
+	edges := make([][2]vec2, n)
+	for i in 0 ..< n {
+		edges[i] = {points[i], points[(i + 1) % n]}
 	}
-	//
-	// check if the polygon is simple.
-	// following is a brute-force approach.
-	// TODO: upgrade to better version: Shamos-Hoey?
-	edge_counter := 0
-	if len(vertices) > 3 {
-		for i0 in 0 ..< n - 2 {
-			fmt.println("---------")
-			i1 := i0 + 1
-			hplane := get_half_plane_simple({vertices[i0], vertices[i1]})
-			for t0 in (i0 + 2) ..< n {
-				t1 := (t0 + 1) % n
-				if i0 != t1 {
-					edge_counter += 1
-					fmt.printfln(
-						"[%v] Half-plane (%v, %v),  Test edge (%v, %v)",
-						edge_counter,
-						i0,
-						i1,
-						t0,
-						t1,
-					)
-				}
+	defer delete(edges)
+
+	// 2. sort by topmost vertex
+	slice.sort_by(edges, edge_vertical_cmp_less)
+	fmt.printfln("\n------------------\nSorted edges:")
+	for edge in edges {
+		top := min(edge[0].y, edge[1].y)
+		fmt.printfln(
+			"Edge: [%.1f, %.1f] -> [%.1f, %.1f], Top : %.1f",
+			edge[0].x,
+			edge[0].y,
+			edge[1].x,
+			edge[1].y,
+			top,
+		)
+	}
+
+	// 3. Move a line own (scanline)
+	scanline_start := min(edges[0][0].y, edges[0][1].y)
+	scanline_y := math.floor(scanline_start)
+	active_edges: [dynamic]ActiveEdge
+	defer delete(active_edges)
+	edge_head: int = 0
+	for {
+		// TODO: use incremental append instead of starting afresh
+		clear(&active_edges)
+		// add to active edges (intersecting scanline)
+		for edge_id in edge_head ..< len(edges) {
+			edge := edges[edge_id]
+			if edge[0].y < scanline_y || edge[1].y < scanline_y {
+				append(
+					&active_edges,
+					ActiveEdge{edge = edge, x_intersection = get_x_intersection(edge, scanline_y)},
+				)
 			}
 		}
+		// remove edges past scanline
+		#reverse for active_edge, ae_id in active_edges {
+			edge := active_edge.edge
+			if edge[0].y < scanline_y && edge[1].y < scanline_y {
+				unordered_remove(&active_edges, ae_id)
+			}
+		}
+		// sort active edges by their x intersection
+		// TODO: replace by incremental sort
+		slice.sort_by(active_edges[:], edge_x_intersection_cmp_less)
+		fill: bool = true
+		if len(active_edges) > 0 {
+			fmt.printfln("-> scanline: %.1f", scanline_y)
+		}
+		for active_edge, ae_id in active_edges {
+			x_start := i32(math.round(active_edge.x_intersection))
+			x_end: i32
+			if ae_id < len(active_edges) - 1 {
+				x_end = i32(math.round(active_edges[ae_id + 1].x_intersection))
+			} else if fill {
+				x_end = target_buffer.w - 1
+			} else {
+				break
+			}
+			fmt.printfln("x_start: %v, x_end: %v, fill: %v", x_start, x_end, fill)
+			if x_start <= target_buffer.w - 1 && fill {
+				for x in x_start ..= x_end {
+					target_buffer.data[x + i32(scanline_y) * target_buffer.w] = style.fill_color
+				}
+			}
+			fill = !fill
+		}
+		scanline_y += 1
+		if i32(scanline_y) >= target_buffer.h {
+			break
+		}
 	}
-
 }
+
 
 half_plane :: struct {
 	line_eqn_a:     f32,
