@@ -6,20 +6,60 @@ import "core:math/rand"
 
 
 AppState :: struct {
-	page: TestPage,
+	page: Page,
 }
 
-TestPage :: enum {
-	MAIN_APP,
-	GRADIENT,
-	LINES,
-	TRIANGLE,
-	RECTANGLE,
-	POLYLINE,
+Page :: union {
+	MainPage,
+	GradientPage,
+	LinesPage,
+	TrianglePage,
+	RectanglePage,
+	PolylinePage,
 }
+
+MainPage :: struct {}
+GradientPage :: struct {}
+LinesPage :: struct {
+	angle_offset: f32,
+	speed:        f32,
+	paused:       bool,
+}
+TrianglePage :: struct {
+	triangle:        Element,
+	switch_duration: f64,
+	switch_counter:  int,
+}
+RectanglePage :: struct {
+	rectangle:        Element,
+	switch_duration: f64,
+	switch_counter:  int,
+}
+PolylinePage :: struct {}
+
+main_page := MainPage{}
+gradient_page := GradientPage{}
+lines_page := LinesPage {
+	speed = 0.2,
+}
+triangle_page := TrianglePage {
+	switch_duration = 2,
+	triangle = Element {
+		shape = Triangle{},
+		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
+	},
+}
+rectangle_page := RectanglePage{
+	switch_duration = 2,
+	rectangle = Element {
+		shape = Rect{},
+		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
+}
+}
+polyline_page := PolylinePage{}
 
 app_state: AppState = {
-	page = .LINES,
+	page = lines_page, // opening page
 }
 
 draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
@@ -40,13 +80,25 @@ draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
 
 
 draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
+	num_space_releases := 0
+	#reverse for key_event in input.key_events {
+		if key_event.key == .Space && key_event.action == .RELEASE {
+			num_space_releases += 1
+		}
+	}
+	if num_space_releases % 2 != 0 {
+		lines_page.paused = !lines_page.paused
+		fmt.printfln("Lines Page Toggle, Pause: %v", lines_page.paused)
+	}
 	w := f32(buffer.w)
 	h := f32(buffer.h)
 	clear_buffer({0, 0, 125, 255}, buffer)
 	center: [2]f32 = {0.5 * w, 0.5 * h}
 	num_lines: int = 30
 	angle_step: f32 = 2.0 * math.PI / f32(num_lines)
-	angle: f32 = 2.0 * math.PI * math.sin(0.01 * f32(input.time))
+	speed := lines_page.paused ? 0 : lines_page.speed
+	lines_page.angle_offset += speed * input.dt
+	angle: f32 = lines_page.angle_offset
 	line_elem: Element
 	for i in 0 ..< num_lines {
 		pt: [2]f32 = {0.3 * w * math.cos(angle) + center.x, 0.3 * h * math.sin(angle) + center.y}
@@ -64,6 +116,37 @@ draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
 		}
 		draw_element_sr(line_elem, buffer)
 	}
+}
+
+draw_triangle_page :: proc(buffer: ^Buffer, input: Input) {
+	clear_buffer({0, 0, 125, 255}, buffer)
+	count := int(input.time / triangle_page.switch_duration)
+	triangle := &triangle_page.triangle.shape.(Triangle)
+	if count != triangle_page.switch_counter || triangle^ == {} {
+		triangle_page.switch_counter = count
+		triangle.points[0].x = rand.float32_range(0, f32(buffer.w))
+		triangle.points[0].y = rand.float32_range(0, f32(buffer.h))
+		triangle.points[1].x = rand.float32_range(0, f32(buffer.w))
+		triangle.points[1].y = rand.float32_range(0, f32(buffer.h))
+		triangle.points[2].x = rand.float32_range(0, f32(buffer.w))
+		triangle.points[2].y = rand.float32_range(0, f32(buffer.h))
+	}
+	draw_element_sr(triangle_page.triangle, buffer)
+}
+
+
+draw_rectangle_page :: proc(buffer: ^Buffer, input: Input) {
+	clear_buffer({0, 0, 125, 255}, buffer)
+	count := int(input.time / rectangle_page.switch_duration)
+	rect := &rectangle_page.rectangle.shape.(Rect)
+	if count != triangle_page.switch_counter || rect^ == {} {
+		triangle_page.switch_counter = count
+		rect.dimension.x = rand.float32_range(0.1*f32(buffer.w), 0.9*f32(buffer.w))
+		rect.dimension.y = rand.float32_range(0.1*f32(buffer.h), 0.9*f32(buffer.h))
+		rect.position.x = rand.float32_range(0, f32(buffer.w) - rect.dimension.x)
+		rect.position.y = rand.float32_range(0, f32(buffer.h) - rect.dimension.y)
+	}
+	draw_element_sr(rectangle_page.rectangle, buffer)
 }
 
 // for debugging purposes
@@ -111,28 +194,25 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 	#reverse for key_event in input.key_events {
 		#partial switch key_event.key {
 		case .Num_0:
-			app_state.page = TestPage.MAIN_APP
+			app_state.page = main_page
 		case .Num_1:
-			app_state.page = TestPage.GRADIENT
+			app_state.page = gradient_page
 		case .Num_2:
-			app_state.page = TestPage.LINES
+			app_state.page = lines_page
+		case .Num_3:
+			app_state.page = triangle_page
+		case .Num_4:
+			app_state.page = rectangle_page
 		}
+
 	}
 
-	#partial switch app_state.page {
-	case .GRADIENT:
+	#partial switch page in app_state.page {
+	case GradientPage:
 		draw_gradient_page(buffer, input)
-	case .LINES:
+	case LinesPage:
 		draw_lines_page(buffer, input)
-	case .MAIN_APP:
-		// clear screen
-		bg_rect_elem: Element = {
-			shape = Rect{position = {0, 0}, dimension = {f32(buffer.w), f32(buffer.h)}},
-			style = Style{fill_color = {0, 125, 150, 255}},
-		}
-		draw_element_sr(bg_rect_elem, buffer)
-
-
+	case MainPage:
 		pt_elem: Element = {
 			shape = Point{position = {500, 100}},
 			style = Style{fill_color = {255, 0, 0, 255}, stroke_color = {0, 255, 0, 255}},
@@ -155,6 +235,11 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 			style = Style{stroke_color = {255, 200, 0, 255}},
 		}
 		draw_element_sr(polyline_elm, buffer)
+	case TrianglePage:
+		draw_triangle_page(buffer, input)
+	case RectanglePage:
+		draw_rectangle_page(buffer, input)
+	case PolylinePage:
 
 	// n := 10
 	// polygon: Polygon

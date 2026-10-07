@@ -14,10 +14,10 @@ import "core:time"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
-DEFAULT_W :: 300
-DEFAULT_H :: 300
-PIXEL_SCALE_X :: 6
-PIXEL_SCALE_Y :: 6
+DEFAULT_W :: 100
+DEFAULT_H :: 100
+PIXEL_SCALE_X ::16
+PIXEL_SCALE_Y :: 16
 TITLE :: "savage"
 
 GL_MAJOR_VERSION :: 3

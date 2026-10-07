@@ -19,6 +19,10 @@ Polyline :: struct {
 	points: []vec2,
 }
 
+Triangle :: struct {
+	points: [3]vec2,
+}
+
 Rect :: struct {
 	position:  vec2,
 	dimension: vec2,
@@ -39,6 +43,7 @@ Shape :: union {
 	Point,
 	Line,
 	Polyline,
+	Triangle,
 	Rect,
 	Polygon,
 	Ellipse,
@@ -71,10 +76,13 @@ draw_element_sr :: proc(element: Element, target_buffer: ^Buffer) {
 		draw_line(shape, element.style, target_buffer)
 	case Polyline:
 		draw_polyline(shape, element.style, target_buffer)
+	case Triangle:
+		draw_triangle(shape, element.style, target_buffer)
 	case Rect:
 		draw_rect(shape, element.style, target_buffer)
 	case Polygon:
 		draw_polygon(shape, element.style, target_buffer)
+	case Ellipse:
 	}
 }
 
@@ -118,7 +126,17 @@ draw_polyline :: proc(polyline: Polyline, style: Style, target_buffer: ^Buffer) 
 	}
 }
 
+draw_triangle :: proc(triangle: Triangle, style: Style, target_buffer: ^Buffer) {
+	// FIXME: visible misalignment b/w borders and fill
+	pts := triangle.points
+	rasterize_triangle(pts, style.fill_color, target_buffer)
+	rasterize_line(pts[0], pts[1], style.stroke_color, target_buffer)
+	rasterize_line(pts[1], pts[2], style.stroke_color, target_buffer)
+	rasterize_line(pts[2], pts[0], style.stroke_color, target_buffer)
+}
+
 draw_rect :: proc(rect: Rect, style: Style, target_buffer: ^Buffer) {
+	// FIXME: top and bottom edges are often extended towards left by 1px
 	p0: vec2 = rect.position
 	p1: vec2 = {rect.position.x + rect.dimension.x, rect.position.y}
 	p2: vec2 = {rect.position.x, rect.position.y + rect.dimension.y}
