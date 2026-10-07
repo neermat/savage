@@ -14,11 +14,13 @@ import "core:time"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
-DEFAULT_W :: 200
-DEFAULT_H :: 200
-PIXEL_SCALE_X :: 8
-PIXEL_SCALE_Y :: 8
+DEFAULT_W :: 1600
+DEFAULT_H :: 1600
+PIXEL_SCALE_X :: 1
+PIXEL_SCALE_Y :: 1
 TITLE :: "savage"
+
+FPS_WINDOW_SECS :: 1.0
 
 GL_MAJOR_VERSION :: 3
 GL_MINOR_VERSION :: 3
@@ -43,6 +45,9 @@ Viewer :: struct {
 	start_time:            time.Tick,
 	frame_tick:            time.Tick,
 	time_since_start:      time.Duration,
+	fps_timer:             f64,
+	fps_frames:            int,
+	fps_last:              f32,
 	show_info:             bool,
 }
 
@@ -243,8 +248,7 @@ viewer_init :: proc(viewer: ^Viewer) {
 }
 
 viewer_draw_info :: proc(viewer: ^Viewer) {
-	current_fps := 1 / viewer.input.dt
-	fmt.printfln("Time Elapsed since last frame: %.3f s (%.0f FPS)", viewer.input.dt, current_fps)
+	fmt.printfln("Mean frame time: %.3f s (%.0f FPS)", 1 / viewer.fps_last, viewer.fps_last)
 	fmt.printfln(
 		"Viewer.w: %d, Viewer.h: %d, Viewer.backbuffer size: %d",
 		viewer.buffer.w,
@@ -255,10 +259,18 @@ viewer_draw_info :: proc(viewer: ^Viewer) {
 
 viewer_update :: proc(viewer: ^Viewer) {
 	// Timekeeping
-	dt := f32(time.duration_seconds(time.tick_lap_time(&viewer.frame_tick)))
-	viewer.input.dt = math.clamp(dt, 1e-6, 0.1)
+	dt := time.duration_seconds(time.tick_lap_time(&viewer.frame_tick))
+	viewer.input.dt = math.clamp(f32(dt), 1e-6, 0.1)
 	viewer.time_since_start = time.tick_since(viewer.start_time)
 	viewer.input.time = time.duration_seconds(viewer.time_since_start)
+	// Update FPS monitor
+	viewer.fps_timer += dt
+	viewer.fps_frames += 1
+	if viewer.fps_timer >= FPS_WINDOW_SECS {
+		viewer.fps_last = f32(viewer.fps_frames) / f32(viewer.fps_timer)
+		viewer.fps_timer = 0
+		viewer.fps_frames = 0
+	}
 
 	// Clear input
 	for &key in viewer.input.keys {

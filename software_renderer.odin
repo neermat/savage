@@ -191,18 +191,18 @@ draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
 
 	// 2. sort by topmost vertex
 	slice.sort_by(edges, edge_vertical_cmp_less)
-	fmt.printfln("\n------------------\nSorted edges:")
-	for edge in edges {
-		top := min(edge[0].y, edge[1].y)
-		fmt.printfln(
-			"Edge: [%.1f, %.1f] -> [%.1f, %.1f], Top : %.1f",
-			edge[0].x,
-			edge[0].y,
-			edge[1].x,
-			edge[1].y,
-			top,
-		)
-	}
+	// fmt.printfln("\n------------------\nSorted edges:")
+	// for edge in edges {
+	// 	top := min(edge[0].y, edge[1].y)
+		// fmt.printfln(
+		// 	"Edge: [%.1f, %.1f] -> [%.1f, %.1f], Top : %.1f",
+		// 	edge[0].x,
+		// 	edge[0].y,
+		// 	edge[1].x,
+		// 	edge[1].y,
+		// 	top,
+		// )
+	// }
 
 	// 3. Move a line own (scanline)
 	scanline_start := min(edges[0][0].y, edges[0][1].y)
@@ -234,9 +234,9 @@ draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
 		// TODO: replace by incremental sort
 		slice.sort_by(active_edges[:], edge_x_intersection_cmp_less)
 		fill: bool = true
-		if len(active_edges) > 0 {
-			fmt.printfln("-> scanline: %.1f", scanline_y)
-		}
+		// if len(active_edges) > 0 {
+		// 	fmt.printfln("-> scanline: %.1f", scanline_y)
+		// }
 		for active_edge, ae_id in active_edges {
 			x_start := i32(math.round(active_edge.x_intersection))
 			x_end: i32
@@ -247,7 +247,7 @@ draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
 			} else {
 				break
 			}
-			fmt.printfln("x_start: %v, x_end: %v, fill: %v", x_start, x_end, fill)
+			// fmt.printfln("x_start: %v, x_end: %v, fill: %v", x_start, x_end, fill)
 			if x_start <= target_buffer.w - 1 && fill {
 				for x in x_start ..= x_end {
 					target_buffer.data[x + i32(scanline_y) * target_buffer.w] = style.fill_color
