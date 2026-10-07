@@ -153,6 +153,7 @@ draw_rect :: proc(rect: Rect, style: Style, target_buffer: ^Buffer) {
 }
 
 draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
+	fmt.println("Drawing Polygon..")
 }
 
 draw_polygon_ear_clipping :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {

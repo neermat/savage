@@ -14,10 +14,10 @@ import "core:time"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
-DEFAULT_W :: 100
-DEFAULT_H :: 100
-PIXEL_SCALE_X ::16
-PIXEL_SCALE_Y :: 16
+DEFAULT_W :: 240
+DEFAULT_H :: 240
+PIXEL_SCALE_X :: 8
+PIXEL_SCALE_Y :: 8
 TITLE :: "savage"
 
 GL_MAJOR_VERSION :: 3
@@ -298,16 +298,20 @@ viewer_update :: proc(viewer: ^Viewer) {
 	)
 
 	// Blit to Framebuffer 0
+	fb_w, fb_h := glfw.GetFramebufferSize(viewer.window)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, viewer.framebuffer_id)
+	// NOTE: dest's not guaranteed to be a perfect multiple,
+	//       allow it to crop bottom & right side
+	//       Alternative: snap the window size
 	gl.BlitFramebuffer(
 		0,
 		0,
 		viewer.buffer.w,
 		viewer.buffer.h,
 		0,
-		viewer.blit_destination_size.y,
+		fb_h,
 		viewer.blit_destination_size.x,
-		0,
+		fb_h - viewer.blit_destination_size.y,
 		gl.COLOR_BUFFER_BIT,
 		gl.NEAREST,
 	)

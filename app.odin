@@ -12,6 +12,7 @@ AppState :: struct {
 Page :: union {
 	MainPage,
 	GradientPage,
+	CoordinateTestPage,
 	LinesPage,
 	TrianglePage,
 	RectanglePage,
@@ -31,11 +32,16 @@ TrianglePage :: struct {
 	switch_counter:  int,
 }
 RectanglePage :: struct {
-	rectangle:        Element,
+	rectangle:       Element,
 	switch_duration: f64,
 	switch_counter:  int,
 }
-PolylinePage :: struct {}
+PolylinePage :: struct {
+	polyline:        Element,
+	switch_duration: f64,
+	switch_counter:  int,
+}
+CoordinateTestPage :: struct {}
 
 main_page := MainPage{}
 gradient_page := GradientPage{}
@@ -49,17 +55,24 @@ triangle_page := TrianglePage {
 		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
 	},
 }
-rectangle_page := RectanglePage{
+rectangle_page := RectanglePage {
 	switch_duration = 2,
 	rectangle = Element {
 		shape = Rect{},
 		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
+	},
 }
+polyline_page := PolylinePage {
+	switch_duration = 2,
+	polyline = Element {
+		shape = Polyline{},
+		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
+	},
 }
-polyline_page := PolylinePage{}
+coordinate_test_page := CoordinateTestPage{}
 
 app_state: AppState = {
-	page = lines_page, // opening page
+	page = polyline_page, // opening page
 }
 
 draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
@@ -141,12 +154,51 @@ draw_rectangle_page :: proc(buffer: ^Buffer, input: Input) {
 	rect := &rectangle_page.rectangle.shape.(Rect)
 	if count != triangle_page.switch_counter || rect^ == {} {
 		triangle_page.switch_counter = count
-		rect.dimension.x = rand.float32_range(0.1*f32(buffer.w), 0.9*f32(buffer.w))
-		rect.dimension.y = rand.float32_range(0.1*f32(buffer.h), 0.9*f32(buffer.h))
+		rect.dimension.x = rand.float32_range(0.1 * f32(buffer.w), 0.9 * f32(buffer.w))
+		rect.dimension.y = rand.float32_range(0.1 * f32(buffer.h), 0.9 * f32(buffer.h))
 		rect.position.x = rand.float32_range(0, f32(buffer.w) - rect.dimension.x)
 		rect.position.y = rand.float32_range(0, f32(buffer.h) - rect.dimension.y)
 	}
 	draw_element_sr(rectangle_page.rectangle, buffer)
+}
+
+draw_coordinate_test_page :: proc(buffer: ^Buffer, input: Input) {
+	clear_buffer({0, 0, 125, 255}, buffer)
+	border_color: Color = {255, 128, 0, 255}
+	corner_color: Color = {255, 64, 0, 255}
+	// horizontal edges
+	for x in 0 ..< buffer.w {
+		buffer.data[x] = border_color
+		buffer.data[(buffer.h - 1) * buffer.w + x] = border_color
+	}
+	// vertical edges
+	for y in 0 ..< buffer.h {
+		buffer.data[y * buffer.w] = border_color
+		buffer.data[y * buffer.w + buffer.h - 1] = border_color
+	}
+	// corners
+	buffer.data[0] = corner_color
+	buffer.data[buffer.h - 1] = corner_color
+	buffer.data[(buffer.h - 1) * buffer.w] = corner_color
+	buffer.data[(buffer.h - 1) * buffer.w + buffer.h - 1] = corner_color
+}
+
+draw_polyline_page :: proc(buffer: ^Buffer, input: Input) {
+	clear_buffer({0, 0, 125, 255}, buffer)
+	count := int(input.time / polyline_page.switch_duration)
+	polyline := &polyline_page.polyline.shape.(Polyline)
+	n := rand.int_range(3, 25)
+	if count != polyline_page.switch_counter || polyline.points == nil {
+		delete(polyline.points)
+		polyline.points = make([]vec2, n)
+		polyline_page.switch_counter = count
+		for i in 0 ..< n {
+			polyline.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
+			polyline.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
+		}
+	}
+	draw_element_sr(polyline_page.polyline, buffer)
+
 }
 
 // for debugging purposes
@@ -198,11 +250,15 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 		case .Num_1:
 			app_state.page = gradient_page
 		case .Num_2:
-			app_state.page = lines_page
+			app_state.page = coordinate_test_page
 		case .Num_3:
-			app_state.page = triangle_page
+			app_state.page = lines_page
 		case .Num_4:
+			app_state.page = triangle_page
+		case .Num_5:
 			app_state.page = rectangle_page
+		case .Num_6:
+			app_state.page = polyline_page
 		}
 
 	}
@@ -210,61 +266,17 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 	#partial switch page in app_state.page {
 	case GradientPage:
 		draw_gradient_page(buffer, input)
+	case CoordinateTestPage:
+		draw_coordinate_test_page(buffer, input)
 	case LinesPage:
 		draw_lines_page(buffer, input)
-	case MainPage:
-		pt_elem: Element = {
-			shape = Point{position = {500, 100}},
-			style = Style{fill_color = {255, 0, 0, 255}, stroke_color = {0, 255, 0, 255}},
-		}
-		rect_elem: Element = {
-			shape = Rect{position = {100, 100}, dimension = {600, 600}},
-			style = Style{fill_color = {0, 125, 180, 255}, stroke_color = {125, 0, 0, 255}},
-		}
-
-		n := 10
-		polyline: Polyline
-		polyline.points = make([]vec2, n)
-		rand.reset(1)
-		for i in 0 ..< n {
-			polyline.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
-			polyline.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
-		}
-		polyline_elm: Element = {
-			shape = polyline,
-			style = Style{stroke_color = {255, 200, 0, 255}},
-		}
-		draw_element_sr(polyline_elm, buffer)
 	case TrianglePage:
 		draw_triangle_page(buffer, input)
 	case RectanglePage:
 		draw_rectangle_page(buffer, input)
 	case PolylinePage:
-
-	// n := 10
-	// polygon: Polygon
-	// polygon.points = make([]vec2, n)
-	// rand.reset(1)
-	// for i in 0..<n {
-	//     polygon.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
-	//     polygon.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
-	// }
-	// polygon_elm: Element = {
-	//     shape = polygon,
-	//     style = Style{stroke_color  = {255, 200, 0, 255}}
-	// }
-	// draw_element_sr(polygon_elm, buffer)
-
-	//draw_element_sr(bg_rect_elem, buffer)
-	//draw_element_sr(rect_elem, buffer)
-	//points : [3]vec2 = {
-	//{100, 100},
-	//{800, 800},
-	//{1600, 100},
-	//}
-	//rasterize_triangle(points, Color{255, 0, 0, 0}, buffer)
-
-	//rasterize_line_bresenham({100, 1000}, {1000, 100}, Color{255, 255, 255, 0}, buffer)
+		draw_polyline_page(buffer, input)
+	case MainPage:
 
 	}
 }
