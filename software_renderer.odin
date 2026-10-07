@@ -78,6 +78,11 @@ draw_element_sr :: proc(element: Element, target_buffer: ^Buffer) {
 	}
 }
 
+clear_buffer :: proc(color: Color, target_buffer: ^Buffer) {
+	for &pixel in target_buffer.data {
+		pixel = color
+	}
+}
 
 draw_point :: proc(point: Point, style: Style, target_buffer: ^Buffer) {
 	target_w := target_buffer.w

@@ -3,9 +3,26 @@ package savage
 import "core:fmt"
 import "core:math"
 import "core:math/rand"
-import "core:time"
 
-draw_gradient :: proc(buffer: ^Buffer, input: Input) {
+
+AppState :: struct {
+	page: TestPage,
+}
+
+TestPage :: enum {
+	MAIN_APP,
+	GRADIENT,
+	LINES,
+	TRIANGLE,
+	RECTANGLE,
+	POLYLINE,
+}
+
+app_state: AppState = {
+	page = .LINES,
+}
+
+draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
 	color: Color
 	t := input.time
 	color.b = u8((0.5 + 0.5 * math.sin(t)) * 255)
@@ -22,32 +39,91 @@ draw_gradient :: proc(buffer: ^Buffer, input: Input) {
 }
 
 
-AppState :: struct {
-	page: TestPage,
+draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
+	w := f32(buffer.w)
+	h := f32(buffer.h)
+	clear_buffer({0, 0, 125, 255}, buffer)
+	center: [2]f32 = {0.5 * w, 0.5 * h}
+	num_lines: int = 30
+	angle_step: f32 = 2.0 * math.PI / f32(num_lines)
+	angle: f32 = 2.0 * math.PI * math.sin(0.01 * f32(input.time))
+	line_elem: Element
+	for i in 0 ..< num_lines {
+		pt: [2]f32 = {0.3 * w * math.cos(angle) + center.x, 0.3 * h * math.sin(angle) + center.y}
+		angle += angle_step
+		if i % 2 == 0 {
+			line_elem = Element {
+				shape = Line{from = center, end = pt},
+				style = {stroke_color = {255, 128, 0, 255}},
+			}
+		} else {
+			line_elem = Element {
+				shape = Line{from = pt, end = center},
+				style = {stroke_color = {128, 255, 0, 255}},
+			}
+		}
+		draw_element_sr(line_elem, buffer)
+	}
 }
 
-TestPage :: enum {
-	MAIN_APP,
-	GRADIENT,
-	LINES,
-	TRIANGLE,
-	RECTANGLE,
-	POLYLINE,
-}
+// for debugging purposes
+log_input :: proc(buffer: ^Buffer, input: Input) {
+	// test input
+	if len(input.key_events) > 0 {
+		fmt.printfln("Keyevents (Len: %v)", len(input.key_events))
+		#reverse for key_event, event_idx in input.key_events {
+			fmt.printfln("Key Event # %v : %v", event_idx, key_event)
+		}
+	}
 
-app_state: AppState
+	for k in Key {
+		key := input.keys[k]
+		if key.half_transition_count > 0 {
+			fmt.printfln("Key %v: %v", k, key)
+		}
+	}
+	for b in MouseButton {
+		btn := input.mouse_btn[b]
+		if btn.half_transition_count > 0 {
+			fmt.printfln("Mouse %v: %v", b, btn)
+		}
+	}
+	if input.scroll.x != 0 || input.scroll.y != 0 {
+		fmt.printfln("Scroll: [x: %v, y: %v]", input.scroll.x, input.scroll.y)
+	}
+	// fmt.printfln("Mouse Position: [x: %v, y: %v]", input.mouse_pos.x, input.mouse_pos.y)
+	mouse_pos := input.mouse_pos
+	mouse_pos_size: f32 = 10
+	mouse_point_elem: Element = {
+		shape = Rect {
+			position = {
+				math.round(mouse_pos.x) - mouse_pos_size / 2,
+				math.round(mouse_pos.y) - mouse_pos_size / 2,
+			},
+			dimension = {mouse_pos_size, mouse_pos_size},
+		},
+		style = Style{fill_color = {255, 125, 0, 255}},
+	}
+	draw_element_sr(mouse_point_elem, buffer)
+}
 
 app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 	#reverse for key_event in input.key_events {
 		#partial switch key_event.key {
 		case .Num_0:
+			app_state.page = TestPage.MAIN_APP
+		case .Num_1:
 			app_state.page = TestPage.GRADIENT
+		case .Num_2:
+			app_state.page = TestPage.LINES
 		}
 	}
 
 	#partial switch app_state.page {
 	case .GRADIENT:
-		draw_gradient(buffer, input)
+		draw_gradient_page(buffer, input)
+	case .LINES:
+		draw_lines_page(buffer, input)
 	case .MAIN_APP:
 		// clear screen
 		bg_rect_elem: Element = {
@@ -55,44 +131,6 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 			style = Style{fill_color = {0, 125, 150, 255}},
 		}
 		draw_element_sr(bg_rect_elem, buffer)
-
-		// test input
-		if len(input.key_events) > 0 {
-			fmt.printfln("Keyevents (Len: %v)", len(input.key_events))
-			#reverse for key_event, event_idx in input.key_events {
-				fmt.printfln("Key Event # %v : %v", event_idx, key_event)
-			}
-		}
-
-		for k in Key {
-			key := input.keys[k]
-			if key.half_transition_count > 0 {
-				fmt.printfln("Key %v: %v", k, key)
-			}
-		}
-		for b in MouseButton {
-			btn := input.mouse_btn[b]
-			if btn.half_transition_count > 0 {
-				fmt.printfln("Mouse %v: %v", b, btn)
-			}
-		}
-		if input.scroll.x != 0 || input.scroll.y != 0 {
-			fmt.printfln("Scroll: [x: %v, y: %v]", input.scroll.x, input.scroll.y)
-		}
-		// fmt.printfln("Mouse Position: [x: %v, y: %v]", input.mouse_pos.x, input.mouse_pos.y)
-		mouse_pos := input.mouse_pos
-		mouse_pos_size: f32 = 10
-		mouse_point_elem: Element = {
-			shape = Rect {
-				position = {
-					math.round(mouse_pos.x) - mouse_pos_size / 2,
-					math.round(mouse_pos.y) - mouse_pos_size / 2,
-				},
-				dimension = {mouse_pos_size, mouse_pos_size},
-			},
-			style = Style{fill_color = {255, 125, 0, 255}},
-		}
-		draw_element_sr(mouse_point_elem, buffer)
 
 
 		pt_elem: Element = {
@@ -104,53 +142,6 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 			style = Style{fill_color = {0, 125, 180, 255}, stroke_color = {125, 0, 0, 255}},
 		}
 
-		//line1: Element = {
-		//shape = Line{from = {50, 50}, end = {1500, 500}},
-		//style = Style{stroke_color = {0, 255, 0, 255}},
-		//}
-		//line2: Element = {
-		//shape = Line{from = {1600, 500}, end = {50, 50}},
-		//style = Style{stroke_color = {0, 255, 0, 255}},
-		//}
-		//line3: Element = {
-		//shape = Line{from = {50, 50}, end = {500, 1000}},
-		//style = Style{stroke_color = {255, 0, 0, 255}},
-		//}
-		//line4: Element = {
-		//shape = Line{from = {500, 1100}, end = {50, 50}},
-		//style = Style{stroke_color = {255, 0, 0, 255}},
-		//}
-		//line5: Element = {
-		//shape = Line{from = {50, 50}, end = {400, 400}},
-		//style = Style{stroke_color = {255, 255, 255, 255}},
-		//}
-		//line6: Element = {
-		//shape = Line{from = {50, 1000}, end = {1500, 700}},
-		//style = Style{stroke_color = {255, 255, 0, 255}},
-		//}
-		//line7: Element = {
-		//shape = Line{from = {1600, 700}, end = {50, 1000}},
-		//style = Style{stroke_color = {255, 255, 0, 255}},
-		//}
-		//line8: Element = {
-		//shape = Line{from = {50, 1000}, end = {200, 50}},
-		//style = Style{stroke_color = {0, 255, 255, 255}},
-		//}
-		//line9: Element = {
-		//shape = Line{from = {200, 100}, end = {50, 1000}},
-		//style = Style{stroke_color = {0, 255, 255, 255}},
-		//}
-		//draw_element_sr(bg_rect_elem, buffer)
-		//draw_element_sr(rect_elem, buffer)
-		//draw_element_sr(line1, buffer)
-		//draw_element_sr(line2, buffer)
-		//draw_element_sr(line3, buffer)
-		//draw_element_sr(line4, buffer)
-		//draw_element_sr(line5, buffer)
-		//draw_element_sr(line6, buffer)
-		//draw_element_sr(line7, buffer)
-		//draw_element_sr(line8, buffer)
-		//draw_element_sr(line9, buffer)
 		n := 10
 		polyline: Polyline
 		polyline.points = make([]vec2, n)
