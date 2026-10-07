@@ -188,13 +188,34 @@ draw_polyline_page :: proc(buffer: ^Buffer, input: Input) {
 	count := int(input.time / polyline_page.switch_duration)
 	polyline := &polyline_page.polyline.shape.(Polyline)
 	n := rand.int_range(3, 25)
+	sampled_angle: f32
+	angle_bin_size: f32 = 2 * math.PI / f32(n)
+	sampled_length: f32
 	if count != polyline_page.switch_counter || polyline.points == nil {
 		delete(polyline.points)
 		polyline.points = make([]vec2, n)
 		polyline_page.switch_counter = count
-		for i in 0 ..< n {
-			polyline.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
-			polyline.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
+		if count % 2 == 0 {
+			// truly random points
+			for i in 0 ..< n {
+				polyline.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
+				polyline.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
+			}
+			polyline_page.polyline.style.stroke_color = {128, 255, 0, 255}
+		} else {
+			// sampling non self-intersecting
+			for i in 0 ..< n {
+				sampled_angle = rand.float32_range(
+					f32(i) * angle_bin_size,
+					f32(i + 1) * angle_bin_size,
+				)
+				sampled_length = rand.float32_range(0.3, 0.45) * f32(math.min(buffer.w, buffer.h))
+				polyline.points[i].x =
+					0.5 * f32(buffer.w) + sampled_length * math.cos(sampled_angle)
+				polyline.points[i].y =
+					0.5 * f32(buffer.h) + sampled_length * math.sin(sampled_angle)
+			}
+			polyline_page.polyline.style.stroke_color = {255, 128, 0, 255}
 		}
 	}
 	draw_element_sr(polyline_page.polyline, buffer)
