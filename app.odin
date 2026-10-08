@@ -79,7 +79,7 @@ polygon_page := PolygonPage {
 	switch_duration = 2,
 	polygon = Element {
 		shape = Polygon{},
-		style = {fill_color = {180, 180, 125, 255}, stroke_color = {200, 0, 0, 255}},
+		style = {},
 	},
 }
 coordinate_test_page := CoordinateTestPage{}
@@ -118,7 +118,7 @@ draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
 	}
 	w := f32(buffer.w)
 	h := f32(buffer.h)
-	clear_buffer({0, 0, 125, 255}, buffer)
+	clear_buffer({40, 40, 80, 255}, buffer)
 	center: [2]f32 = {0.5 * w, 0.5 * h}
 	num_lines: int = 30
 	angle_step: f32 = 2.0 * math.PI / f32(num_lines)
@@ -145,7 +145,7 @@ draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
 }
 
 draw_triangle_page :: proc(buffer: ^Buffer, input: Input) {
-	clear_buffer({0, 0, 125, 255}, buffer)
+	clear_buffer({40, 40, 80, 255}, buffer)
 	count := int(input.time / triangle_page.switch_duration)
 	triangle := &triangle_page.triangle.shape.(Triangle)
 	if count != triangle_page.switch_counter || triangle^ == {} {
@@ -162,7 +162,7 @@ draw_triangle_page :: proc(buffer: ^Buffer, input: Input) {
 
 
 draw_rectangle_page :: proc(buffer: ^Buffer, input: Input) {
-	clear_buffer({0, 0, 125, 255}, buffer)
+	clear_buffer({40, 40, 80, 255}, buffer)
 	count := int(input.time / rectangle_page.switch_duration)
 	rect := &rectangle_page.rectangle.shape.(Rect)
 	if count != triangle_page.switch_counter || rect^ == {} {
@@ -176,7 +176,7 @@ draw_rectangle_page :: proc(buffer: ^Buffer, input: Input) {
 }
 
 draw_coordinate_test_page :: proc(buffer: ^Buffer, input: Input) {
-	clear_buffer({0, 0, 125, 255}, buffer)
+	clear_buffer({40, 40, 80, 255}, buffer)
 	border_color: Color = {255, 128, 0, 255}
 	corner_color: Color = {255, 64, 0, 255}
 	// horizontal edges
@@ -197,7 +197,7 @@ draw_coordinate_test_page :: proc(buffer: ^Buffer, input: Input) {
 }
 
 draw_polyline_page :: proc(buffer: ^Buffer, input: Input) {
-	clear_buffer({0, 0, 125, 255}, buffer)
+	clear_buffer({40, 40, 80, 255}, buffer)
 	count := int(input.time / polyline_page.switch_duration)
 	polyline := &polyline_page.polyline.shape.(Polyline)
 	n := rand.int_range(3, 25)
@@ -236,7 +236,7 @@ draw_polyline_page :: proc(buffer: ^Buffer, input: Input) {
 }
 
 draw_polygon_page :: proc(buffer: ^Buffer, input: Input) {
-	clear_buffer({0, 0, 125, 255}, buffer)
+	clear_buffer({40, 40, 80, 255}, buffer)
 	count := int(input.time / polygon_page.switch_duration)
 	polygon := &polygon_page.polygon.shape.(Polygon)
 	n := rand.int_range(3, 25)
@@ -253,7 +253,7 @@ draw_polygon_page :: proc(buffer: ^Buffer, input: Input) {
 				polygon.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
 				polygon.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
 			}
-			polygon_page.polygon.style.stroke_color = {128, 255, 0, 255}
+			polygon_page.polygon.style.fill_color = {120, 180, 90, 255}
 		} else {
 			// sampling non self-intersecting
 			for i in 0 ..< n {
@@ -267,7 +267,7 @@ draw_polygon_page :: proc(buffer: ^Buffer, input: Input) {
 				polygon.points[i].y =
 					0.5 * f32(buffer.h) + sampled_length * math.sin(sampled_angle)
 			}
-			polygon_page.polygon.style.stroke_color = {255, 128, 0, 255}
+			polygon_page.polygon.style.fill_color = {180, 120, 90, 255}
 		}
 	}
 	draw_element_sr(polygon_page.polygon, buffer)

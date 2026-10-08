@@ -71,6 +71,21 @@ viewer_key_callback :: proc "c" (
 			glfw.SetWindowShouldClose(window, true)
 		} else if key == glfw.KEY_GRAVE_ACCENT {
 			viewer.show_info = !viewer.show_info
+		} else if key == glfw.KEY_EQUAL {
+			prev_scale := viewer.pixel_scale
+			viewer.pixel_scale.x += 1
+			viewer.pixel_scale.y += 1
+			viewer.window_resized = true
+		} else if key == glfw.KEY_MINUS {
+			prev_scale := viewer.pixel_scale
+			if viewer.pixel_scale.x > 1 {
+				viewer.pixel_scale.x -= 1
+			}
+			if viewer.pixel_scale.y > 1 {
+				viewer.pixel_scale.y -= 1
+			}
+
+			viewer.window_resized = true
 		}
 	}
 

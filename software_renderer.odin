@@ -194,14 +194,14 @@ draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
 	// fmt.printfln("\n------------------\nSorted edges:")
 	// for edge in edges {
 	// 	top := min(edge[0].y, edge[1].y)
-		// fmt.printfln(
-		// 	"Edge: [%.1f, %.1f] -> [%.1f, %.1f], Top : %.1f",
-		// 	edge[0].x,
-		// 	edge[0].y,
-		// 	edge[1].x,
-		// 	edge[1].y,
-		// 	top,
-		// )
+	// fmt.printfln(
+	// 	"Edge: [%.1f, %.1f] -> [%.1f, %.1f], Top : %.1f",
+	// 	edge[0].x,
+	// 	edge[0].y,
+	// 	edge[1].x,
+	// 	edge[1].y,
+	// 	top,
+	// )
 	// }
 
 	// 3. Move a line own (scanline)
@@ -238,19 +238,23 @@ draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
 		// 	fmt.printfln("-> scanline: %.1f", scanline_y)
 		// }
 		for active_edge, ae_id in active_edges {
-			x_start := i32(math.round(active_edge.x_intersection))
-			x_end: i32
+			x_start := int(math.round(active_edge.x_intersection))
+			x_end: int
 			if ae_id < len(active_edges) - 1 {
-				x_end = i32(math.round(active_edges[ae_id + 1].x_intersection))
+				x_end = int(math.round(active_edges[ae_id + 1].x_intersection))
 			} else if fill {
-				x_end = target_buffer.w - 1
+				x_end = int(target_buffer.w - 1)
 			} else {
 				break
 			}
 			// fmt.printfln("x_start: %v, x_end: %v, fill: %v", x_start, x_end, fill)
-			if x_start <= target_buffer.w - 1 && fill {
+			pixel_id: int
+			if fill {
 				for x in x_start ..= x_end {
-					target_buffer.data[x + i32(scanline_y) * target_buffer.w] = style.fill_color
+					pixel_id = int(x) + int(scanline_y) * int(target_buffer.w)
+					if pixel_id < len(target_buffer.data) {
+						target_buffer.data[pixel_id] = style.fill_color
+					}
 				}
 			}
 			fill = !fill
