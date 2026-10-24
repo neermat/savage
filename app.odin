@@ -295,7 +295,8 @@ draw_curve_page :: proc(buffer: ^Buffer, input: Input) {
 			curve_page.control_points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
 		}
 	}
-	draw_curve_bezier_basic(curve_page.control_points, curve_page.style, buffer)
+	// draw_curve_bezier_basic(curve_page.control_points, curve_page.style, buffer)
+	draw_curve_bezier_casteljau(curve_page.control_points, curve_page.style, buffer)
 }
 
 // for debugging purposes

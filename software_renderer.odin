@@ -152,21 +152,92 @@ draw_rect :: proc(rect: Rect, style: Style, target_buffer: ^Buffer) {
 	rasterize_line(p1, p3, style.stroke_color, target_buffer)
 }
 
+BEZIER_SUBDIV_TOLERANCE :: 0.25
 
-draw_curve_bezier_basic :: proc(control_points: [4]vec2, style: Style, target_buffer: ^Buffer) {
-	num_steps: int = 40
-	dt: f32 = 1.0 / f32(num_steps)
-	t, t2, t3, tm, tm2, tm3: f32
+
+draw_curve_bezier_casteljau :: proc(
+	control_points: [4]vec2,
+	style: Style,
+	target_buffer: ^Buffer,
+) {
+	// Reference: https://agg.sourceforge.net/antigrain.com/research/adaptive_bezier/
+	//            Paul De Casteljau's Divide and Conquer based method
+	// TODO: control color should be in the style with a bool
+
 	p1 := control_points[0]
 	p2 := control_points[1]
 	p3 := control_points[2]
 	p4 := control_points[3]
-	p_prev := p1
-	p_curr: vec2
+
+	// Calculate mid points
+	p12, p23, p34, p123, p234, p1234: vec2
+	p12 = {(p1.x + p2.x) / 2, (p1.y + p2.y) / 2}
+	p23 = {(p2.x + p3.x) / 2, (p2.y + p3.y) / 2}
+	p34 = {(p3.x + p4.x) / 2, (p3.y + p4.y) / 2}
+	p123 = {(p12.x + p23.x) / 2, (p12.y + p23.y) / 2}
+	p234 = {(p23.x + p34.x) / 2, (p23.y + p34.y) / 2}
+	p1234 = {(p123.x + p234.x) / 2, (p123.y + p234.y) / 2}
+
+	// Estimate error
+	d41: vec2 = {p4.x - p1.x, p4.y - p1.y}
+	// d2, d3 is the dist. b/w p2, p3 and the line (p1, p4)
+	d2 := math.abs((p2.x - p4.x) * d41.y - (p2.y - p4.y) * d41.y)
+	d3 := math.abs((p3.x - p4.x) * d41.y - (p3.y - p4.y) * d41.y)
+
+	// Draw control points
 	control_color: Color = {60, 60, 100, 255}
 	rasterize_line(p1, p2, control_color, target_buffer)
 	rasterize_line(p2, p3, control_color, target_buffer)
 	rasterize_line(p3, p4, control_color, target_buffer)
+	rasterize_line(p12, p23, control_color, target_buffer)
+	rasterize_line(p23, p34, control_color, target_buffer)
+	rasterize_line(p123, p234, control_color, target_buffer)
+
+	is_flat_enough :=
+		(d2 + d3) * (d2 + d3) < BEZIER_SUBDIV_TOLERANCE * (d41.x * d41.x + d41.y * d41.y)
+	if is_flat_enough {
+		rasterize_line(p1, p1234, style.stroke_color, target_buffer)
+		rasterize_line(p1234, p4, style.stroke_color, target_buffer)
+	} else {
+		draw_curve_bezier_casteljau({p1, p12, p123, p1234}, style, target_buffer)
+		draw_curve_bezier_casteljau({p1234, p234, p34, p4}, style, target_buffer)
+	}
+}
+
+draw_curve_bezier_basic :: proc(control_points: [4]vec2, style: Style, target_buffer: ^Buffer) {
+	// Reference: https://agg.sourceforge.net/antigrain.com/research/adaptive_bezier/
+	// TODO: control color should be in the style
+	p1 := control_points[0]
+	p2 := control_points[1]
+	p3 := control_points[2]
+	p4 := control_points[3]
+
+	// Draw control points
+	control_color: Color = {60, 60, 100, 255}
+	rasterize_line(p1, p2, control_color, target_buffer)
+	rasterize_line(p2, p3, control_color, target_buffer)
+	rasterize_line(p3, p4, control_color, target_buffer)
+
+	// Curve length estimation for determining step size
+	dx1 := p2.x - p1.x
+	dy1 := p2.y - p1.y
+	dx2 := p3.x - p2.x
+	dy2 := p3.y - p2.y
+	dx3 := p4.x - p3.x
+	dy3 := p4.y - p3.y
+
+	len :=
+		math.sqrt(dx1 * dx1 + dy1 * dy1) +
+		math.sqrt(dx2 * dx2 + dy2 * dy2) +
+		math.sqrt(dx3 * dx3 + dy3 * dy3)
+	num_steps := int(len * 0.25)
+	fmt.printfln("[Draw_Bezier_Basic]: Length: %.2f, Num steps: %d", len, num_steps)
+	dt: f32 = 1.0 / f32(num_steps)
+
+	// Draw the curve
+	t, t2, t3, tm, tm2, tm3: f32
+	p_prev := p1
+	p_curr: vec2
 	for i in 0 ..< num_steps {
 		t += dt
 		t2 = t * t
