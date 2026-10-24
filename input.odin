@@ -2,23 +2,23 @@ package savage
 
 // TODO: Add support for typed text
 Input :: struct {
-	dt:        f32, // seconds since last frame
-	time:      f64, // seconds since start
-	mouse_pos: [2]f32,
-	mouse_btn: [MouseButton]Button,
-	scroll:    [2]f32,
-	keys:      #sparse[Key]Button,
+	dt:         f32, // seconds since last frame
+	time:       f64, // seconds since start
+	mouse_pos:  [2]f32,
+	mouse_btn:  [MouseButton]Button,
+	scroll:     [2]f32,
+	keys:       #sparse[Key]Button,
 	key_events: [dynamic; 32]KeyEvent,
 }
 
 KeyAction :: enum {
 	RELEASE,
 	PRESS,
-	REPEAT
+	REPEAT,
 }
 
 KeyEvent :: struct {
-	key: Key,
+	key:    Key,
 	action: KeyAction,
 }
 

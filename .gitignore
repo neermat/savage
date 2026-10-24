@@ -1,3 +1,6 @@
+# Excluded Subdirs
+notes/
+
 # Editors
 .idea/
 .vscode/

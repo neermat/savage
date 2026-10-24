@@ -14,10 +14,10 @@ import "core:time"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
-DEFAULT_W :: 1600
-DEFAULT_H :: 1600
-PIXEL_SCALE_X :: 1
-PIXEL_SCALE_Y :: 1
+DEFAULT_W :: 400
+DEFAULT_H :: 400
+PIXEL_SCALE_X :: 4
+PIXEL_SCALE_Y :: 4
 TITLE :: "savage"
 
 FPS_WINDOW_SECS :: 1.0

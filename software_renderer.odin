@@ -39,7 +39,6 @@ Ellipse :: struct {
 }
 
 // TODO: Define Image and Group elements
-
 Shape :: union {
 	Point,
 	Line,
@@ -151,6 +150,35 @@ draw_rect :: proc(rect: Rect, style: Style, target_buffer: ^Buffer) {
 	rasterize_line(p0, p2, style.stroke_color, target_buffer)
 	rasterize_line(p2, p3, style.stroke_color, target_buffer)
 	rasterize_line(p1, p3, style.stroke_color, target_buffer)
+}
+
+
+draw_curve_bezier_basic :: proc(control_points: [4]vec2, style: Style, target_buffer: ^Buffer) {
+	num_steps: int = 40
+	dt: f32 = 1.0 / f32(num_steps)
+	t, t2, t3, tm, tm2, tm3: f32
+	p1 := control_points[0]
+	p2 := control_points[1]
+	p3 := control_points[2]
+	p4 := control_points[3]
+	p_prev := p1
+	p_curr: vec2
+	control_color: Color = {60, 60, 100, 255}
+	rasterize_line(p1, p2, control_color, target_buffer)
+	rasterize_line(p2, p3, control_color, target_buffer)
+	rasterize_line(p3, p4, control_color, target_buffer)
+	for i in 0 ..< num_steps {
+		t += dt
+		t2 = t * t
+		t3 = t2 * t
+		tm = 1 - t
+		tm2 = tm * tm
+		tm3 = tm2 * tm
+		p_curr.x = tm3 * p1.x + 3 * t * tm2 * p2.x + 3 * t2 * tm * p3.x + t3 * p4.x
+		p_curr.y = tm3 * p1.y + 3 * t * tm2 * p2.y + 3 * t2 * tm * p3.y + t3 * p4.y
+		rasterize_line(p_prev, p_curr, style.stroke_color, target_buffer)
+		p_prev = p_curr
+	}
 }
 
 
@@ -273,6 +301,7 @@ half_plane :: struct {
 	line_eqn_c:     f32,
 	reference_sign: bool,
 }
+
 
 // merge with get_half_plane_simple
 get_half_plane_simple :: proc(line: [2]vec2) -> half_plane {

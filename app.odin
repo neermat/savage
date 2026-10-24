@@ -18,6 +18,7 @@ Page :: union {
 	RectanglePage,
 	PolylinePage,
 	PolygonPage,
+	BezierPage,
 }
 
 MainPage :: struct {}
@@ -43,7 +44,13 @@ PolylinePage :: struct {
 	switch_counter:  int,
 }
 PolygonPage :: struct {
-	polygon:        Element,
+	polygon:         Element,
+	switch_duration: f64,
+	switch_counter:  int,
+}
+BezierPage :: struct {
+	control_points:  [4]vec2,
+	style:           Style,
 	switch_duration: f64,
 	switch_counter:  int,
 }
@@ -77,15 +84,18 @@ polyline_page := PolylinePage {
 }
 polygon_page := PolygonPage {
 	switch_duration = 2,
-	polygon = Element {
-		shape = Polygon{},
-		style = {},
-	},
+	polygon = Element{shape = Polygon{}, style = {}},
 }
+curve_page := BezierPage {
+	switch_counter = -1,
+	switch_duration = 2,
+	style = {stroke_color = {255, 128, 0, 255}},
+}
+
 coordinate_test_page := CoordinateTestPage{}
 
 app_state: AppState = {
-	page = polygon_page, // opening page
+	page = curve_page, // opening page
 }
 
 draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
@@ -273,6 +283,21 @@ draw_polygon_page :: proc(buffer: ^Buffer, input: Input) {
 	draw_element_sr(polygon_page.polygon, buffer)
 }
 
+
+draw_curve_page :: proc(buffer: ^Buffer, input: Input) {
+	clear_buffer({40, 40, 80, 255}, buffer)
+	count := int(input.time / curve_page.switch_duration)
+	if count != curve_page.switch_counter {
+		curve_page.switch_counter = count
+		// truly random points
+		for i in 0 ..< 4 {
+			curve_page.control_points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
+			curve_page.control_points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
+		}
+	}
+	draw_curve_bezier_basic(curve_page.control_points, curve_page.style, buffer)
+}
+
 // for debugging purposes
 log_input :: proc(buffer: ^Buffer, input: Input) {
 	// test input
@@ -333,6 +358,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 			app_state.page = polyline_page
 		case .Num_7:
 			app_state.page = polygon_page
+		case .Num_8:
+			app_state.page = curve_page
 		}
 
 	}
@@ -352,6 +379,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 		draw_polyline_page(buffer, input)
 	case PolygonPage:
 		draw_polygon_page(buffer, input)
+	case BezierPage:
+		draw_curve_page(buffer, input)
 	case MainPage:
 
 	}
