@@ -1,9 +1,10 @@
-package savage
+//
+// Main run loop. Currently using GLFW/GL
+// TODO: If adding new backends/platforms, Only keep the main
+// 		 loop here and move everything else to a `platform/`
+//       input.odin is also part of this
 
-// Components
-// - 1. Platform layer
-// - 2. Software renderer
-// - 3. GPU renderer
+package savage_demo
 
 import "base:runtime"
 import "core:c"
@@ -14,23 +15,21 @@ import "core:time"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
-DEFAULT_W :: 400
-DEFAULT_H :: 400
-PIXEL_SCALE_X :: 4
-PIXEL_SCALE_Y :: 4
-TITLE :: "savage"
 
 FPS_WINDOW_SECS :: 1.0
 
 GL_MAJOR_VERSION :: 3
 GL_MINOR_VERSION :: 3
 
-Color :: [4]u8
 
 Buffer :: struct {
-	data: []Color,
+	data: [][4]u8,
 	w:    i32,
 	h:    i32,
+}
+
+ViewerConfig :: struct {
+
 }
 
 Viewer :: struct {
@@ -141,7 +140,7 @@ viewer_scroll_callback :: proc "c" (window: glfw.WindowHandle, xoffset: f64, yof
 
 allocate_buffer :: proc(buffer: ^Buffer, w: i32, h: i32) {
 	delete(buffer.data)
-	buffer.data = make([]Color, buffer.w * buffer.h)
+	buffer.data = make([][4]u8, buffer.w * buffer.h)
 }
 
 init_buffer :: proc(viewer: ^Viewer) {

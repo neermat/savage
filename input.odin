@@ -1,4 +1,4 @@
-package savage
+package savage_demo
 
 // TODO: Add support for typed text
 Input :: struct {
