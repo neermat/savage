@@ -8,9 +8,9 @@ notes/
 
 # Build output
 bin/
+*.bin
 debug_build
 debug_build-package
-savage
 *.dSYM/
 
 # macOS
