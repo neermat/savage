@@ -23,7 +23,7 @@ Page :: union {
 	// GradientPage,
 	// CoordinateTestPage,
 	LinesPage,
-	// TrianglePage,
+	TrianglePage,
 	// RectanglePage,
 	// PolylinePage,
 	// PolygonPage,
@@ -38,11 +38,11 @@ LinesPage :: struct {
 	paused:       bool,
 	antialiasing: bool,
 }
-// TrianglePage :: struct {
-// 	triangle:        sg.Element,
-// 	switch_duration: f64,
-// 	switch_counter:  int,
-// }
+TrianglePage :: struct {
+	triangle:        [3]vec2,
+	switch_duration: f64,
+	switch_counter:  int,
+}
 // RectanglePage :: struct {
 // 	rectangle:       sg.Element,
 // 	switch_duration: f64,
@@ -73,13 +73,10 @@ lines_page := LinesPage {
 	speed        = 0.2,
 	antialiasing = true,
 }
-// triangle_page := TrianglePage {
-// 	switch_duration = 2,
-// 	triangle = sg.Element {
-// 		shape = sg.Triangle{},
-// 		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
-// 	},
-// }
+triangle_page := TrianglePage {
+	switch_counter = -1,
+	switch_duration = 2,
+}
 // rectangle_page := RectanglePage {
 // 	switch_duration = 2,
 // 	rectangle = sg.Element {
@@ -107,7 +104,8 @@ lines_page := LinesPage {
 // coordinate_test_page := CoordinateTestPage{}
 
 app_state: AppState = {
-	page = lines_page, // opening page
+	// page = lines_page, // opening page
+	page = triangle_page, // opening page
 }
 
 // draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
@@ -148,10 +146,8 @@ copy_render_target_to_buffer :: proc(buffer: ^Buffer, render_target: ^sg.RenderT
 	}
 }
 
-
 // Test hairline rasterization by drawing spokes of a rotating wheel
-draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
-	refresh_render_target(buffer, &render_target)
+draw_lines_page :: proc(input: Input) {
 	num_space_releases := 0
 	num_a_releases := 0
 	#reverse for key_event in input.key_events {
@@ -172,8 +168,8 @@ draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
 		lines_page.antialiasing = !lines_page.antialiasing
 	}
 
-	w := f32(buffer.w)
-	h := f32(buffer.h)
+	w := f32(render_target.w)
+	h := f32(render_target.h)
 	bg_color := sg.to_linear_premul({40, 40, 80, 255})
 	sg.fill(bg_color, &render_target)
 	center: [2]f32 = {0.5 * w, 0.5 * h}
@@ -201,24 +197,32 @@ draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
 			}
 		}
 	}
-	copy_render_target_to_buffer(buffer, &render_target)
 }
 
-// draw_triangle_page :: proc(buffer: ^Buffer, input: Input) {
-// 	clear_buffer({40, 40, 80, 255}, buffer)
-// 	count := int(input.time / triangle_page.switch_duration)
-// 	triangle := &triangle_page.triangle.shape.(Triangle)
-// 	if count != triangle_page.switch_counter || triangle^ == {} {
-// 		triangle_page.switch_counter = count
-// 		triangle.points[0].x = rand.float32_range(0, f32(buffer.w))
-// 		triangle.points[0].y = rand.float32_range(0, f32(buffer.h))
-// 		triangle.points[1].x = rand.float32_range(0, f32(buffer.w))
-// 		triangle.points[1].y = rand.float32_range(0, f32(buffer.h))
-// 		triangle.points[2].x = rand.float32_range(0, f32(buffer.w))
-// 		triangle.points[2].y = rand.float32_range(0, f32(buffer.h))
-// 	}
-// 	draw_element_sr(triangle_page.triangle, buffer)
-// }
+draw_triangle_page :: proc(input: Input) {
+	// clear the background
+	bg_color := sg.to_linear_premul({40, 40, 80, 255})
+	fill_color := sg.to_linear_premul({255, 128, 0, 255})
+	sg.fill(bg_color, &render_target)
+
+	count := int(input.time / triangle_page.switch_duration)
+	triangle := &triangle_page.triangle
+	if count != triangle_page.switch_counter {
+		triangle_page.switch_counter = count
+		triangle[0].x = rand.float32_range(0, f32(render_target.w))
+		triangle[0].y = rand.float32_range(0, f32(render_target.h))
+		triangle[1].x = rand.float32_range(0, f32(render_target.w))
+		triangle[1].y = rand.float32_range(0, f32(render_target.h))
+		triangle[2].x = rand.float32_range(0, f32(render_target.w))
+		triangle[2].y = rand.float32_range(0, f32(render_target.h))
+		// triangle[0] = {193.19, 112.26}
+		// triangle[1] = {191.95, 1.16}
+		// triangle[2] = {149.38, 144.37}
+		// fmt.printfln("Triangle Sampled: %v", triangle^)
+	}
+	// sg.rasterize_triangle_old(triangle^, fill_color, &render_target)
+	sg.rasterize_triangle(triangle^, fill_color, &render_target)
+}
 
 
 // draw_rectangle_page :: proc(buffer: ^Buffer, input: Input) {
@@ -391,28 +395,14 @@ draw_lines_page :: proc(buffer: ^Buffer, input: Input) {
 // }
 
 app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
+	refresh_render_target(buffer, &render_target)
 	#reverse for key_event in input.key_events {
 		#partial switch key_event.key {
-		// case .Num_0:
-		// 	app_state.page = main_page
-		// case .Num_1:
-		// 	app_state.page = gradient_page
-		// case .Num_2:
-		// 	app_state.page = coordinate_test_page
-		case .Num_3:
+		case .Num_1:
 			app_state.page = lines_page
-		// case .Num_4:
-		// 	app_state.page = triangle_page
-		// case .Num_5:
-		// 	app_state.page = rectangle_page
-		// case .Num_6:
-		// 	app_state.page = polyline_page
-		// case .Num_7:
-		// 	app_state.page = polygon_page
-		// case .Num_8:
-		// 	app_state.page = curve_page
+		case .Num_2:
+			app_state.page = triangle_page
 		}
-
 	}
 
 	#partial switch page in app_state.page {
@@ -421,9 +411,9 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 	// case CoordinateTestPage:
 	// 	draw_coordinate_test_page(buffer, input)
 	case LinesPage:
-		draw_lines_page(buffer, input)
-	// 	case TrianglePage:
-	// 		draw_triangle_page(buffer, input)
+		draw_lines_page(input)
+	case TrianglePage:
+		draw_triangle_page(input)
 	// 	case RectanglePage:
 	// 		draw_rectangle_page(buffer, input)
 	// 	case PolylinePage:
@@ -435,4 +425,5 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 	// 	case MainPage:
 	//
 	}
+	copy_render_target_to_buffer(buffer, &render_target)
 }
