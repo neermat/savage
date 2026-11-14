@@ -74,7 +74,7 @@ lines_page := LinesPage {
 	antialiasing = true,
 }
 triangle_page := TrianglePage {
-	switch_counter = -1,
+	switch_counter  = -1,
 	switch_duration = 2,
 }
 // rectangle_page := RectanglePage {
@@ -205,6 +205,10 @@ draw_triangle_page :: proc(input: Input) {
 	fill_color := sg.to_linear_premul({255, 128, 0, 255})
 	sg.fill(bg_color, &render_target)
 
+	red := sg.ColorLinPremul{1.0, 0.0, 0.0, 1.0}
+	blue := sg.ColorLinPremul{0.0, 1.0, 0.0, 1.0}
+	green := sg.ColorLinPremul{0.0, 0.0, 1.0, 1.0}
+
 	count := int(input.time / triangle_page.switch_duration)
 	triangle := &triangle_page.triangle
 	if count != triangle_page.switch_counter {
@@ -221,7 +225,8 @@ draw_triangle_page :: proc(input: Input) {
 		// fmt.printfln("Triangle Sampled: %v", triangle^)
 	}
 	// sg.rasterize_triangle_old(triangle^, fill_color, &render_target)
-	sg.rasterize_triangle(triangle^, fill_color, &render_target)
+	// sg.rasterize_triangle(triangle^, fill_color, &render_target)
+	sg.rasterize_triangle_3colors(triangle^, {red, blue, green}, &render_target)
 }
 
 
