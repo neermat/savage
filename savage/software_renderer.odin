@@ -564,13 +564,39 @@ test_half_plane :: proc(hplane: half_plane, test_point: vec2) -> bool {
 }
 
 
-EdgeFuncInterpolator :: struct {
+Interpolator :: struct {
 	val:         f32,
 	dx:          f32,
-	dy:          f32,
-	ve_dist:     f32,
-	ve_dist_inv: f32,
-	opp_color:   ColorLinPremul,
+	dy:          f32
+}
+
+interp_increment_x :: proc(interp: ^Interpolator) {
+	interp.val += interp.dy
+}
+
+interp_decrement_x :: proc(interp: ^Interpolator) {
+	interp.val -= interp.dy
+}
+
+interp_increment_y :: proc(interp: ^Interpolator) {
+	interp.val -= interp.dx
+}
+
+interp_decrement_y :: proc(interp: ^Interpolator) {
+	interp.val += interp.dx
+}
+
+interp_update_xy :: proc(interp: ^Interpolator, x: f32, y: f32) {
+	interp.val += x * interp.dy - y * interp.dx
+}
+
+mix_colors :: proc(colors: [$N]ColorLinPremul, weights: [N]f32) -> ColorLinPremul {
+	color : ColorLinPremul
+	// fmt.printfln("weights: %v", weights)
+	for i in 0..<N {
+		color = add_colors(color, scale_color(colors[i], f16(weights[i])))
+	}
+	return color
 }
 
 
@@ -613,35 +639,40 @@ rasterize_triangle_3colors :: proc(
 	}
 
 
-	edge_fn_interps: [3]EdgeFuncInterpolator
+	edge_fn_interps: [3]Interpolator
 
 	// initialize edge function interpolators
-	interp: ^EdgeFuncInterpolator
-	ve_dist: f32
 	for v1, i in points {
 		v2 := points[(i + 1) % 3]
-		opp_idx := (i + 2) % 3
-		v3 := points[opp_idx]
-		interp = &edge_fn_interps[i]
-		interp.opp_color = colors[opp_idx]
-		interp.dx = v2.x - v1.x
-		interp.dy = v2.y - v1.y
-		interp.val = (f32(p_start.x) - v2.x) * interp.dy - (f32(p_start.y) - v2.y) * interp.dx
-		ve_dist =
-			interp.val + (v3.x - f32(p_start.x)) * interp.dy - (v3.y - f32(p_start.y)) * interp.dx
-		interp.ve_dist_inv = 1 / (ve_dist + 1e-7)
+		e_interp := &edge_fn_interps[i]
+
+		e_interp.dx = v2.x - v1.x
+		e_interp.dy = v2.y - v1.y
+		e_interp.val = (f32(p_start.x) - v2.x) * e_interp.dy - (f32(p_start.y) - v2.y) * e_interp.dx
 	}
 
+	// Set interpolators for barycentric coordinates
+	area, area_inv : f32
+	for e_interp, i in edge_fn_interps {
+		v_idx := (i + 2) % 3
+		v3 := points[v_idx]
+		if i == 0 {
+			// compute area for barycentric interpolation
+			area = e_interp.val + (v3.x - f32(p_start.x)) * e_interp.dy - (v3.y - f32(p_start.y)) * e_interp.dx
+		}
+	}
+	if area <= 0 do return
+	area_inv =  1/ area
 
 	// Traverse the pixels
 	p_center, p: [2]int
 	val_at_center: [3]f32
 	is_inside: bool
+	bary_coords: [3]f32
 	// traverse down the center-line
 	// TODO: Do not check outside the target
 	p = p_start
 	center_shift_x: int
-	color: ColorLinPremul
 	for p.y <= y_max {
 
 		// Save value at center
@@ -654,17 +685,13 @@ rasterize_triangle_3colors :: proc(
 			p.x += 1
 			// test p
 			is_inside = true
-			color = {}
-			for &interp in edge_fn_interps {
-				interp.val += interp.dy
-				// TODO: this is not incremental!
-				color = add_colors(
-					color,
-					scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)),
-				)
+			for &interp, i in edge_fn_interps {
+				interp_increment_x(&interp)
+				bary_coords[i] = interp.val * area_inv
 				is_inside &&= interp.val >= 0
 			}
 			if is_inside {
+				color := mix_colors(colors, bary_coords.yzx)
 				color_pixel(p.x, p.y, color, target)
 			} else {
 				break
@@ -683,17 +710,13 @@ rasterize_triangle_3colors :: proc(
 			p.x -= 1
 			// test p
 			is_inside = true
-			color = {}
-			for &interp in edge_fn_interps {
-				interp.val -= interp.dy
-				color = add_colors(
-					color,
-					scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)),
-				)
-				// color = add_colors(color, scale_color(interp.opp_color, f16(interp.val)))
+			for &interp, i in edge_fn_interps {
+				interp_decrement_x(&interp)
+				bary_coords[i] = interp.val * area_inv
 				is_inside &&= interp.val >= 0
 			}
 			if is_inside {
+				color := mix_colors(colors, bary_coords.yzx)
 				color_pixel(p.x, p.y, color, target)
 			} else {
 				break
@@ -710,7 +733,8 @@ rasterize_triangle_3colors :: proc(
 		center_shift_x = 0
 		p.y += 1
 		for &interp in edge_fn_interps {
-			interp.val -= interp.dx
+			interp_increment_y(&interp)
+			// compute center line shift if we ended up outside
 			if interp.val < 0 {
 				if interp.dy > 0 {
 					center_shift_x = int(math.ceil(-interp.val / interp.dy))
@@ -724,17 +748,13 @@ rasterize_triangle_3colors :: proc(
 		p.x += center_shift_x
 		// test p
 		is_inside = true
-		color = {}
-		for &interp in edge_fn_interps {
-			interp.val += f32(center_shift_x) * interp.dy
-			color = add_colors(
-				color,
-				scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)),
-			)
-			// color = add_colors(color, scale_color(interp.opp_color, f16(interp.val)))
+		for &interp, i in edge_fn_interps {
+			interp_update_xy(&interp, f32(center_shift_x), 0)
+			bary_coords[i] = interp.val * area_inv
 			is_inside &&= interp.val >= 0
 		}
 		if is_inside {
+			color := mix_colors(colors, bary_coords.yzx)
 			color_pixel(p.x, p.y, color, target)
 		}
 	}
@@ -775,10 +795,10 @@ rasterize_triangle :: proc(points: [3]vec2, color: ColorLinPremul, target: ^Rend
 	}
 
 
-	edge_fn_interps: [3]EdgeFuncInterpolator
+	edge_fn_interps: [3]Interpolator
 
 	// initialize edge function interpolators
-	interp: ^EdgeFuncInterpolator
+	interp: ^Interpolator
 	for v1, i in points {
 		v2 := points[(i + 1) % 3]
 		interp = &edge_fn_interps[i]

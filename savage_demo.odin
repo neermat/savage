@@ -24,7 +24,7 @@ Page :: union {
 	// CoordinateTestPage,
 	LinesPage,
 	TrianglePage,
-	// RectanglePage,
+	QuadPage,
 	// PolylinePage,
 	// PolygonPage,
 	// BezierPage,
@@ -43,11 +43,12 @@ TrianglePage :: struct {
 	switch_duration: f64,
 	switch_counter:  int,
 }
-// RectanglePage :: struct {
-// 	rectangle:       sg.Element,
-// 	switch_duration: f64,
-// 	switch_counter:  int,
-// }
+QuadPage :: struct {
+	quad:            [4]vec2,
+	fill_color:  	 sg.ColorLinPremul,
+	switch_duration: f64,
+	switch_counter:  int,
+}
 // PolylinePage :: struct {
 // 	polyline:        sg.Element,
 // 	switch_duration: f64,
@@ -77,13 +78,10 @@ triangle_page := TrianglePage {
 	switch_counter  = -1,
 	switch_duration = 2,
 }
-// rectangle_page := RectanglePage {
-// 	switch_duration = 2,
-// 	rectangle = sg.Element {
-// 		shape = Rect{},
-// 		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
-// 	},
-// }
+quad_page := QuadPage {
+	switch_counter  = -1,
+	switch_duration = 2,
+}
 // polyline_page := PolylinePage {
 // 	switch_duration = 2,
 // 	polyline = sg.Element {
@@ -105,7 +103,8 @@ triangle_page := TrianglePage {
 
 app_state: AppState = {
 	// page = lines_page, // opening page
-	page = triangle_page, // opening page
+	// page = triangle_page, // opening page
+	page = quad_page, // opening page
 }
 
 // draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
@@ -205,45 +204,97 @@ draw_triangle_page :: proc(input: Input) {
 	fill_color := sg.to_linear_premul({255, 128, 0, 255})
 	sg.fill(bg_color, &render_target)
 
-	red := sg.ColorLinPremul{1.0, 0.0, 0.0, 0.0}
-	blue := sg.ColorLinPremul{0.0, 1.0, 0.0, 1.0}
-	green := sg.ColorLinPremul{0.0, 0.0, 1.0, 1.0}
+	red := sg.to_linear_premul({255, 0, 0, 255})
+	blue := sg.to_linear_premul({0, 255, 0, 255})
+	green := sg.to_linear_premul({0, 0, 255, 255})
 
 	count := int(input.time / triangle_page.switch_duration)
 	triangle := &triangle_page.triangle
 	if count != triangle_page.switch_counter {
+		sg.fill(bg_color, &render_target)
 		triangle_page.switch_counter = count
-		triangle[0].x = rand.float32_range(0, f32(render_target.w))
-		triangle[0].y = rand.float32_range(0, f32(render_target.h))
-		triangle[1].x = rand.float32_range(0, f32(render_target.w))
-		triangle[1].y = rand.float32_range(0, f32(render_target.h))
-		triangle[2].x = rand.float32_range(0, f32(render_target.w))
-		triangle[2].y = rand.float32_range(0, f32(render_target.h))
-		// triangle[0] = {193.19, 112.26}
-		// triangle[1] = {191.95, 1.16}
-		// triangle[2] = {149.38, 144.37}
-		// fmt.printfln("Triangle Sampled: %v", triangle^)
+		// triangle[0].x = rand.float32_range(0, f32(render_target.w))
+		// triangle[0].y = rand.float32_range(0, f32(render_target.h))
+		// triangle[1].x = rand.float32_range(0, f32(render_target.w))
+		// triangle[1].y = rand.float32_range(0, f32(render_target.h))
+		// triangle[2].x = rand.float32_range(0, f32(render_target.w))
+		// triangle[2].y = rand.float32_range(0, f32(render_target.h))
+		triangle[0] = {193.19, 112.26}
+		triangle[1] = {191.95, 1.16}
+		triangle[2] = {149.38, 144.37}
+		fmt.printfln("Triangle Sampled: %v", triangle^)
 	}
+	sg.rasterize_triangle_3colors(triangle^, {red, blue, green}, &render_target)
 	// sg.rasterize_triangle_old(triangle^, fill_color, &render_target)
 	// sg.rasterize_triangle(triangle^, fill_color, &render_target)
-	sg.rasterize_triangle_3colors(triangle^, {red, blue, green}, &render_target)
 }
 
+draw_quad_page :: proc(input: Input) {
+	// Draw quads as two rectangles - test for shared-edge gap
+	// clear the background
+	bg_color := sg.to_linear_premul({40, 40, 80, 255})
+	sg.fill(bg_color, &render_target)
+	fc := &quad_page.fill_color
 
-// draw_rectangle_page :: proc(buffer: ^Buffer, input: Input) {
-// 	clear_buffer({40, 40, 80, 255}, buffer)
-// 	count := int(input.time / rectangle_page.switch_duration)
-// 	rect := &rectangle_page.rectangle.shape.(Rect)
-// 	if count != triangle_page.switch_counter || rect^ == {} {
-// 		triangle_page.switch_counter = count
-// 		rect.dimension.x = rand.float32_range(0.1 * f32(buffer.w), 0.9 * f32(buffer.w))
-// 		rect.dimension.y = rand.float32_range(0.1 * f32(buffer.h), 0.9 * f32(buffer.h))
-// 		rect.position.x = rand.float32_range(0, f32(buffer.w) - rect.dimension.x)
-// 		rect.position.y = rand.float32_range(0, f32(buffer.h) - rect.dimension.y)
-// 	}
-// 	draw_element_sr(rectangle_page.rectangle, buffer)
-// }
-//
+	red := sg.to_linear_premul({255, 0, 0, 255})
+	blue := sg.to_linear_premul({0, 255, 0, 255})
+	green := sg.to_linear_premul({0, 0, 255, 255})
+
+	count := int(input.time / quad_page.switch_duration)
+	quad := &quad_page.quad
+	rect_w: f32
+	rect_h: f32
+	w_f := f32(render_target.w)
+	h_f := f32(render_target.h)
+	axis_aligned_rectangle := false
+	if count != quad_page.switch_counter {
+		quad_page.switch_counter = count
+		// sample random fill color
+		color : sg.Color
+		color.r = u8(rand.int_range(0, 256))
+		color.g = u8(rand.int_range(0, 256))
+		color.b = u8(rand.int_range(0, 256))
+		color.a = 255
+		fc^ = sg.to_linear_premul(color)
+
+		if axis_aligned_rectangle {
+			x1, y1, x2, y2: f32
+			// axis-aligned rectangle
+			x1 = rand.float32_range(0, w_f)
+			y1 = rand.float32_range(0, h_f)
+			x2 = rand.float32_range(x1, w_f)
+			y2 = rand.float32_range(y1, h_f)
+			quad[0] = {x2, y2}
+			quad[1] = {x2, y1}
+			quad[2] = {x1, y1}
+			quad[3] = {x1, y2}
+
+		} else {
+			// General quad (sample one vertex in each quadrant)
+			quad[0].x = rand.float32_range(w_f / 2, w_f)
+			quad[0].y = rand.float32_range(h_f / 2, h_f)
+			quad[1].x = rand.float32_range(w_f / 2, w_f)
+			quad[1].y = rand.float32_range(0, h_f / 2)
+			quad[2].x = rand.float32_range(0, w_f / 2)
+			quad[2].y = rand.float32_range(0, h_f / 2)
+			quad[3].x = rand.float32_range(0, w_f / 2)
+			quad[3].y = rand.float32_range(h_f / 2, h_f)
+		}
+
+		fmt.printfln("Quad Sampled: %v", quad^)
+	}
+	colors: [2][3]sg.ColorLinPremul
+	if count % 2 == 0 {
+		colors = {{green, red, green}, {green, blue, green}}
+	} else {
+		colors = {{fc^, fc^, fc^}, {fc^, fc^, fc^}}
+	}
+	sg.rasterize_triangle_3colors(quad.xyz, colors[0], &render_target)
+	sg.rasterize_triangle_3colors(quad.zwx, colors[1], &render_target)
+	// sg.rasterize_triangle_old(triangle^, fill_color, &render_target)
+	// sg.rasterize_triangle(triangle^, fill_color, &render_target)
+}
+
 // draw_coordinate_test_page :: proc(buffer: ^Buffer, input: Input) {
 // 	clear_buffer({40, 40, 80, 255}, buffer)
 // 	border_color: Color = {255, 128, 0, 255}
@@ -407,6 +458,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 			app_state.page = lines_page
 		case .Num_2:
 			app_state.page = triangle_page
+		case .Num_3:
+			app_state.page = quad_page
 		}
 	}
 
@@ -419,8 +472,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 		draw_lines_page(input)
 	case TrianglePage:
 		draw_triangle_page(input)
-	// 	case RectanglePage:
-	// 		draw_rectangle_page(buffer, input)
+	case QuadPage:
+		draw_quad_page(input)
 	// 	case PolylinePage:
 	// 		draw_polyline_page(buffer, input)
 	// 	case PolygonPage:
