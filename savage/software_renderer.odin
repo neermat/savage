@@ -264,121 +264,101 @@ color_pixel :: proc(x: int, y: int, color: ColorLinPremul, target: ^RenderTarget
 // 		p_prev = p_curr
 // 	}
 // }
-//
-//
-// ActiveEdge :: struct {
-// 	edge:           [2]vec2,
-// 	x_intersection: f32,
-// }
-//
-// get_x_intersection :: proc(line: [2]vec2, y: f32) -> f32 {
-// 	x1, y1 := line[0].x, line[0].y
-// 	x2, y2 := line[1].x, line[1].y
-// 	x := x1 + (y - y1) * (x2 - x1) / (y2 - y1)
-// 	return x
-// }
-//
-// edge_vertical_cmp_less :: proc(edge_a, edge_b: [2]vec2) -> bool {
-// 	return min(edge_a[0].y, edge_a[1].y) < min(edge_b[0].y, edge_b[1].y)
-// }
-//
-// edge_x_intersection_cmp_less :: proc(aedge_a, aedge_b: ActiveEdge) -> bool {
-// 	return aedge_a.x_intersection < aedge_b.x_intersection
-// }
-//
-// draw_polygon :: proc(polygon: Polygon, style: Style, target_buffer: ^Buffer) {
-// 	// Reference:
-// 	// How the stb_truetype Anti-Aliased Software Rasterizer v2 Works
-// 	// https://www.nothings.org/gamedev/rasterize/
-// 	// 					-- Sean Barrett
-// 	points := polygon.points
-// 	n := len(points)
-//
-// 	// 1. gather edges
-// 	edges := make([][2]vec2, n)
-// 	for i in 0 ..< n {
-// 		edges[i] = {points[i], points[(i + 1) % n]}
-// 	}
-// 	defer delete(edges)
-//
-// 	// 2. sort by topmost vertex
-// 	slice.sort_by(edges, edge_vertical_cmp_less)
-// 	// fmt.printfln("\n------------------\nSorted edges:")
-// 	// for edge in edges {
-// 	// 	top := min(edge[0].y, edge[1].y)
-// 	// fmt.printfln(
-// 	// 	"Edge: [%.1f, %.1f] -> [%.1f, %.1f], Top : %.1f",
-// 	// 	edge[0].x,
-// 	// 	edge[0].y,
-// 	// 	edge[1].x,
-// 	// 	edge[1].y,
-// 	// 	top,
-// 	// )
-// 	// }
-//
-// 	// 3. Move a line own (scanline)
-// 	scanline_start := min(edges[0][0].y, edges[0][1].y)
-// 	scanline_y := math.floor(scanline_start)
-// 	active_edges: [dynamic]ActiveEdge
-// 	defer delete(active_edges)
-// 	edge_head: int = 0
-// 	for {
-// 		// TODO: use incremental append instead of starting afresh
-// 		clear(&active_edges)
-// 		// add to active edges (intersecting scanline)
-// 		for edge_id in edge_head ..< len(edges) {
-// 			edge := edges[edge_id]
-// 			if edge[0].y < scanline_y || edge[1].y < scanline_y {
-// 				append(
-// 					&active_edges,
-// 					ActiveEdge{edge = edge, x_intersection = get_x_intersection(edge, scanline_y)},
-// 				)
-// 			}
-// 		}
-// 		// remove edges past scanline
-// 		#reverse for active_edge, ae_id in active_edges {
-// 			edge := active_edge.edge
-// 			if edge[0].y < scanline_y && edge[1].y < scanline_y {
-// 				unordered_remove(&active_edges, ae_id)
-// 			}
-// 		}
-// 		// sort active edges by their x intersection
-// 		// TODO: replace by incremental sort
-// 		slice.sort_by(active_edges[:], edge_x_intersection_cmp_less)
-// 		fill: bool = true
-// 		// if len(active_edges) > 0 {
-// 		// 	fmt.printfln("-> scanline: %.1f", scanline_y)
-// 		// }
-// 		for active_edge, ae_id in active_edges {
-// 			x_start := int(math.round(active_edge.x_intersection))
-// 			x_end: int
-// 			if ae_id < len(active_edges) - 1 {
-// 				x_end = int(math.round(active_edges[ae_id + 1].x_intersection))
-// 			} else if fill {
-// 				x_end = int(target_buffer.w - 1)
-// 			} else {
-// 				break
-// 			}
-// 			// fmt.printfln("x_start: %v, x_end: %v, fill: %v", x_start, x_end, fill)
-// 			pixel_id: int
-// 			if fill {
-// 				for x in x_start ..= x_end {
-// 					pixel_id = int(x) + int(scanline_y) * int(target_buffer.w)
-// 					if pixel_id < len(target_buffer.data) {
-// 						target_buffer.data[pixel_id] = style.fill_color
-// 					}
-// 				}
-// 			}
-// 			fill = !fill
-// 		}
-// 		scanline_y += 1
-// 		if i32(scanline_y) >= target_buffer.h {
-// 			break
-// 		}
-// 	}
-// }
-//
-//
+
+ActiveEdge :: struct {
+	edge:           [2]vec2,
+	x_intersection: f32,
+}
+
+get_x_intersection :: proc(line: [2]vec2, y: f32) -> f32 {
+	x1, y1 := line[0].x, line[0].y
+	x2, y2 := line[1].x, line[1].y
+	x := x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+	return x
+}
+
+edge_miny_cmp :: proc(edge_a, edge_b: [2]vec2) -> bool {
+	return min(edge_a[0].y, edge_a[1].y) < min(edge_b[0].y, edge_b[1].y)
+}
+
+edge_x_intersection_cmp :: proc(aedge_a, aedge_b: ActiveEdge) -> bool {
+	return aedge_a.x_intersection < aedge_b.x_intersection
+}
+
+// TODO: add support for multiple contours
+// TODO: take allocator as parameter
+fill_path :: proc(path: []vec2, color: ColorLinPremul, target: ^RenderTarget) {
+	// Reference:
+	// How the stb_truetype Anti-Aliased Software Rasterizer v2 Works
+	// https://www.nothings.org/gamedev/rasterize/
+	// 					-- Sean Barrett
+	n := len(path)
+
+	// 1. gather edges
+	edges := make([][2]vec2, n)
+	for i in 0 ..< n {
+		edges[i] = {path[i], path[(i + 1) % n]}
+	}
+	defer delete(edges)
+
+	// 2. sort by vertex
+	slice.sort_by(edges, edge_miny_cmp)
+
+	// 3. Move a scanline in +y direction
+	scanline_start := min(edges[0][0].y, edges[0][1].y)
+	scanline_y := math.floor(scanline_start)
+	active_edges: [dynamic]ActiveEdge
+	defer delete(active_edges)
+	edge_head: int = 0
+	for {
+		// TODO: use incremental append instead of starting afresh
+		clear(&active_edges)
+		// add to active edges (intersecting scanline)
+		for edge_id in edge_head ..< len(edges) {
+			edge := edges[edge_id]
+			// if edge crosses scanline add to the list
+			if edge[0].y < scanline_y || edge[1].y < scanline_y {
+				append(
+					&active_edges,
+					ActiveEdge{edge = edge, x_intersection = get_x_intersection(edge, scanline_y)},
+				)
+			}
+		}
+		// remove edges past scanline
+		#reverse for active_edge, ae_id in active_edges {
+			edge := active_edge.edge
+			if edge[0].y < scanline_y && edge[1].y < scanline_y {
+				unordered_remove(&active_edges, ae_id)
+			}
+		}
+
+		// sort active edges by their x intersection
+		// TODO: replace by incremental sort
+		slice.sort_by(active_edges[:], edge_x_intersection_cmp)
+		fill: bool = true
+		// Go over the intersections & Alternative color the pixels
+		for active_edge, ae_id in active_edges {
+			x_start := int(math.round(active_edge.x_intersection))
+			x_end: int
+			if ae_id < len(active_edges) - 1 {
+				x_end = int(math.round(active_edges[ae_id + 1].x_intersection))
+			} else {
+				x_end = int(target.w - 1)
+			}
+			if fill {
+				for x in x_start ..= x_end {
+					color_pixel(int(x), int(scanline_y), color, target)
+				}
+			}
+			fill = !fill
+		}
+		scanline_y += 1
+		if int(scanline_y) >= target.h {
+			break
+		}
+	}
+}
+
 
 // Hairline Rasterization (Two-Point Antialiasing)
 rasterize_hariline_wu :: proc(p1: vec2, p2: vec2, color: ColorLinPremul, target: ^RenderTarget) {
@@ -565,9 +545,9 @@ test_half_plane :: proc(hplane: half_plane, test_point: vec2) -> bool {
 
 
 Interpolator :: struct {
-	val:         f32,
-	dx:          f32,
-	dy:          f32
+	val: f32,
+	dx:  f32,
+	dy:  f32,
 }
 
 interp_increment_x :: proc(interp: ^Interpolator) {
@@ -591,9 +571,9 @@ interp_update_xy :: proc(interp: ^Interpolator, x: f32, y: f32) {
 }
 
 mix_colors :: proc(colors: [$N]ColorLinPremul, weights: [N]f32) -> ColorLinPremul {
-	color : ColorLinPremul
+	color: ColorLinPremul
 	// fmt.printfln("weights: %v", weights)
-	for i in 0..<N {
+	for i in 0 ..< N {
 		color = add_colors(color, scale_color(colors[i], f16(weights[i])))
 	}
 	return color
@@ -602,6 +582,7 @@ mix_colors :: proc(colors: [$N]ColorLinPremul, weights: [N]f32) -> ColorLinPremu
 
 // TODO: use proper polymorphism and/or merge with the one color one
 // TODO: get more clarity about the coordinate system (where are the pixel centers etc.)
+// TODO: Recheck the ownership convention (top-left ownership rule)
 rasterize_triangle_3colors :: proc(
 	points: [3]vec2,
 	colors: [3]ColorLinPremul,
@@ -648,21 +629,25 @@ rasterize_triangle_3colors :: proc(
 
 		e_interp.dx = v2.x - v1.x
 		e_interp.dy = v2.y - v1.y
-		e_interp.val = (f32(p_start.x) - v2.x) * e_interp.dy - (f32(p_start.y) - v2.y) * e_interp.dx
+		e_interp.val =
+			(f32(p_start.x) - v2.x) * e_interp.dy - (f32(p_start.y) - v2.y) * e_interp.dx
 	}
 
 	// Set interpolators for barycentric coordinates
-	area, area_inv : f32
+	area, area_inv: f32
 	for e_interp, i in edge_fn_interps {
 		v_idx := (i + 2) % 3
 		v3 := points[v_idx]
 		if i == 0 {
 			// compute area for barycentric interpolation
-			area = e_interp.val + (v3.x - f32(p_start.x)) * e_interp.dy - (v3.y - f32(p_start.y)) * e_interp.dx
+			area =
+				e_interp.val +
+				(v3.x - f32(p_start.x)) * e_interp.dy -
+				(v3.y - f32(p_start.y)) * e_interp.dx
 		}
 	}
 	if area <= 0 do return
-	area_inv =  1/ area
+	area_inv = 1 / area
 
 	// Traverse the pixels
 	p_center, p: [2]int

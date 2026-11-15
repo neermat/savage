@@ -25,7 +25,7 @@ Page :: union {
 	LinesPage,
 	TrianglePage,
 	QuadPage,
-	// PolylinePage,
+	PathPage,
 	// PolygonPage,
 	// BezierPage,
 }
@@ -45,26 +45,16 @@ TrianglePage :: struct {
 }
 QuadPage :: struct {
 	quad:            [4]vec2,
-	fill_color:  	 sg.ColorLinPremul,
+	fill_color:      sg.ColorLinPremul,
 	switch_duration: f64,
 	switch_counter:  int,
 }
-// PolylinePage :: struct {
-// 	polyline:        sg.Element,
-// 	switch_duration: f64,
-// 	switch_counter:  int,
-// }
-// PolygonPage :: struct {
-// 	polygon:         sg.Element,
-// 	switch_duration: f64,
-// 	switch_counter:  int,
-// }
-// BezierPage :: struct {
-// 	control_points:  [4]vec2,
-// 	style:           sg.Style,
-// 	switch_duration: f64,
-// 	switch_counter:  int,
-// }
+PathPage :: struct {
+	path:            []vec2,
+	fill_color:      sg.ColorLinPremul,
+	switch_duration: f64,
+	switch_counter:  int,
+}
 
 // CoordinateTestPage :: struct {}
 
@@ -82,29 +72,18 @@ quad_page := QuadPage {
 	switch_counter  = -1,
 	switch_duration = 2,
 }
-// polyline_page := PolylinePage {
-// 	switch_duration = 2,
-// 	polyline = sg.Element {
-// 		shape = Polyline{},
-// 		style = {fill_color = {125, 255, 0, 255}, stroke_color = {200, 0, 0, 255}},
-// 	},
-// }
-// polygon_page := PolygonPage {
-// 	switch_duration = 2,
-// 	polygon = Element{shape = Polygon{}, style = {}},
-// }
-// curve_page := BezierPage {
-// 	switch_counter = -1,
-// 	switch_duration = 2,
-// 	style = {stroke_color = {255, 128, 0, 255}},
-// }
+path_page := PathPage {
+	switch_counter  = -1,
+	switch_duration = 2,
+}
 
 // coordinate_test_page := CoordinateTestPage{}
 
 app_state: AppState = {
 	// page = lines_page, // opening page
 	// page = triangle_page, // opening page
-	page = quad_page, // opening page
+	// page = quad_page, // opening page
+	page = path_page, // opening page
 }
 
 // draw_gradient_page :: proc(buffer: ^Buffer, input: Input) {
@@ -250,7 +229,7 @@ draw_quad_page :: proc(input: Input) {
 	if count != quad_page.switch_counter {
 		quad_page.switch_counter = count
 		// sample random fill color
-		color : sg.Color
+		color: sg.Color
 		color.r = u8(rand.int_range(0, 256))
 		color.g = u8(rand.int_range(0, 256))
 		color.b = u8(rand.int_range(0, 256))
@@ -315,83 +294,50 @@ draw_quad_page :: proc(input: Input) {
 // 	buffer.data[(buffer.h - 1) * buffer.w] = corner_color
 // 	buffer.data[(buffer.h - 1) * buffer.w + buffer.h - 1] = corner_color
 // }
+
 //
-// draw_polyline_page :: proc(buffer: ^Buffer, input: Input) {
-// 	clear_buffer({40, 40, 80, 255}, buffer)
-// 	count := int(input.time / polyline_page.switch_duration)
-// 	polyline := &polyline_page.polyline.shape.(Polyline)
-// 	n := rand.int_range(3, 25)
-// 	sampled_angle: f32
-// 	angle_bin_size: f32 = 2 * math.PI / f32(n)
-// 	sampled_length: f32
-// 	if count != polyline_page.switch_counter || polyline.points == nil {
-// 		delete(polyline.points)
-// 		polyline.points = make([]vec2, n)
-// 		polyline_page.switch_counter = count
-// 		if count % 2 == 0 {
-// 			// truly random points
-// 			for i in 0 ..< n {
-// 				polyline.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
-// 				polyline.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
-// 			}
-// 			polyline_page.polyline.style.stroke_color = {128, 255, 0, 255}
-// 		} else {
-// 			// sampling non self-intersecting
-// 			for i in 0 ..< n {
-// 				sampled_angle = rand.float32_range(
-// 					f32(i) * angle_bin_size,
-// 					f32(i + 1) * angle_bin_size,
-// 				)
-// 				sampled_length = rand.float32_range(0.3, 0.45) * f32(math.min(buffer.w, buffer.h))
-// 				polyline.points[i].x =
-// 					0.5 * f32(buffer.w) + sampled_length * math.cos(sampled_angle)
-// 				polyline.points[i].y =
-// 					0.5 * f32(buffer.h) + sampled_length * math.sin(sampled_angle)
-// 			}
-// 			polyline_page.polyline.style.stroke_color = {255, 128, 0, 255}
-// 		}
-// 	}
-// 	draw_element_sr(polyline_page.polyline, buffer)
-//
-// }
-//
-// draw_polygon_page :: proc(buffer: ^Buffer, input: Input) {
-// 	clear_buffer({40, 40, 80, 255}, buffer)
-// 	count := int(input.time / polygon_page.switch_duration)
-// 	polygon := &polygon_page.polygon.shape.(Polygon)
-// 	n := rand.int_range(3, 25)
-// 	sampled_angle: f32
-// 	angle_bin_size: f32 = 2 * math.PI / f32(n)
-// 	sampled_length: f32
-// 	if count != polygon_page.switch_counter || polygon.points == nil {
-// 		delete(polygon.points)
-// 		polygon.points = make([]vec2, n)
-// 		polygon_page.switch_counter = count
-// 		if count % 2 == 0 {
-// 			// truly random points
-// 			for i in 0 ..< n {
-// 				polygon.points[i].x = rand.float32_range(0, f32(buffer.w) - 1)
-// 				polygon.points[i].y = rand.float32_range(0, f32(buffer.h) - 1)
-// 			}
-// 			polygon_page.polygon.style.fill_color = {120, 180, 90, 255}
-// 		} else {
-// 			// sampling non self-intersecting
-// 			for i in 0 ..< n {
-// 				sampled_angle = rand.float32_range(
-// 					f32(i) * angle_bin_size,
-// 					f32(i + 1) * angle_bin_size,
-// 				)
-// 				sampled_length = rand.float32_range(0.3, 0.45) * f32(math.min(buffer.w, buffer.h))
-// 				polygon.points[i].x =
-// 					0.5 * f32(buffer.w) + sampled_length * math.cos(sampled_angle)
-// 				polygon.points[i].y =
-// 					0.5 * f32(buffer.h) + sampled_length * math.sin(sampled_angle)
-// 			}
-// 			polygon_page.polygon.style.fill_color = {180, 120, 90, 255}
-// 		}
-// 	}
-// 	draw_element_sr(polygon_page.polygon, buffer)
-// }
+
+draw_path_page :: proc(input: Input) {
+	bg_color := sg.to_linear_premul({40, 40, 80, 255})
+	sg.fill(bg_color, &render_target)
+	fc := &path_page.fill_color
+
+	count := int(input.time / path_page.switch_duration)
+	path := &path_page.path
+
+	n := rand.int_range(3, 8)
+	sampled_angle: f32
+	angle_bin_size: f32 = 2 * math.PI / f32(n)
+	sampled_length: f32
+	w, h := f32(render_target.w), f32(render_target.h)
+	if count != path_page.switch_counter {
+		delete(path^)
+		path^ = make([]vec2, n)
+		path_page.switch_counter = count
+		if count % 2 == 0 {
+			// truly random points
+			for i in 0 ..< n {
+				path[i].x = rand.float32_range(0, w - 1)
+				path[i].y = rand.float32_range(0, h - 1)
+			}
+			fc^ = sg.to_linear_premul({128, 255, 0, 255})
+		} else {
+			// sampling non self-intersecting
+			for i in 0 ..< n {
+				sampled_angle = rand.float32_range(
+					f32(i) * angle_bin_size,
+					f32(i + 1) * angle_bin_size,
+				)
+				sampled_length = rand.float32_range(0.3, 0.45) * f32(math.min(w, h))
+				path[i].x = 0.5 * w + sampled_length * math.cos(sampled_angle)
+				path[i].y = 0.5 * h + sampled_length * math.sin(sampled_angle)
+			}
+			fc^ = sg.to_linear_premul({255, 128, 0, 255})
+		}
+	}
+	sg.fill_path(path^, fc^, &render_target)
+}
+
 //
 //
 // draw_curve_page :: proc(buffer: ^Buffer, input: Input) {
@@ -460,6 +406,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 			app_state.page = triangle_page
 		case .Num_3:
 			app_state.page = quad_page
+		case .Num_4:
+			app_state.page = path_page
 		}
 	}
 
@@ -474,12 +422,8 @@ app_update_and_render :: proc(buffer: ^Buffer, input: Input) {
 		draw_triangle_page(input)
 	case QuadPage:
 		draw_quad_page(input)
-	// 	case PolylinePage:
-	// 		draw_polyline_page(buffer, input)
-	// 	case PolygonPage:
-	// 		draw_polygon_page(buffer, input)
-	// 	case BezierPage:
-	// 		draw_curve_page(buffer, input)
+	case PathPage:
+		draw_path_page(input)
 	// 	case MainPage:
 	//
 	}
