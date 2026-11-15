@@ -63,10 +63,10 @@ to_srgb :: proc(color_linear: ColorLinPremul) -> Color {
 // NOTE: equivalent to mixing with {0, 0, 0, 1 - scale}
 add_colors :: proc(color_a: ColorLinPremul, color_b: ColorLinPremul) -> ColorLinPremul {
 	color_out: ColorLinPremul
-	color_out.r =  color_a.r + color_b.r
-	color_out.g =  color_a.g + color_b.g
-	color_out.b =  color_a.b + color_b.b
-	color_out.a =  color_a.a + color_b.a
+	color_out.r = color_a.r + color_b.r
+	color_out.g = color_a.g + color_b.g
+	color_out.b = color_a.b + color_b.b
+	color_out.a = color_a.a + color_b.a
 	return color_out
 
 }
@@ -620,7 +620,7 @@ rasterize_triangle_3colors :: proc(
 	ve_dist: f32
 	for v1, i in points {
 		v2 := points[(i + 1) % 3]
-		opp_idx :=  (i + 2) % 3
+		opp_idx := (i + 2) % 3
 		v3 := points[opp_idx]
 		interp = &edge_fn_interps[i]
 		interp.opp_color = colors[opp_idx]
@@ -641,7 +641,7 @@ rasterize_triangle_3colors :: proc(
 	// TODO: Do not check outside the target
 	p = p_start
 	center_shift_x: int
-	color : ColorLinPremul
+	color: ColorLinPremul
 	for p.y <= y_max {
 
 		// Save value at center
@@ -658,7 +658,10 @@ rasterize_triangle_3colors :: proc(
 			for &interp in edge_fn_interps {
 				interp.val += interp.dy
 				// TODO: this is not incremental!
-				color = add_colors(color, scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)))
+				color = add_colors(
+					color,
+					scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)),
+				)
 				is_inside &&= interp.val >= 0
 			}
 			if is_inside {
@@ -683,7 +686,10 @@ rasterize_triangle_3colors :: proc(
 			color = {}
 			for &interp in edge_fn_interps {
 				interp.val -= interp.dy
-				color = add_colors(color, scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)))
+				color = add_colors(
+					color,
+					scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)),
+				)
 				// color = add_colors(color, scale_color(interp.opp_color, f16(interp.val)))
 				is_inside &&= interp.val >= 0
 			}
@@ -721,7 +727,10 @@ rasterize_triangle_3colors :: proc(
 		color = {}
 		for &interp in edge_fn_interps {
 			interp.val += f32(center_shift_x) * interp.dy
-			color = add_colors(color, scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)))
+			color = add_colors(
+				color,
+				scale_color(interp.opp_color, f16(interp.val * interp.ve_dist_inv)),
+			)
 			// color = add_colors(color, scale_color(interp.opp_color, f16(interp.val)))
 			is_inside &&= interp.val >= 0
 		}

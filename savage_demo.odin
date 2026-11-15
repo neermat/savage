@@ -205,7 +205,7 @@ draw_triangle_page :: proc(input: Input) {
 	fill_color := sg.to_linear_premul({255, 128, 0, 255})
 	sg.fill(bg_color, &render_target)
 
-	red := sg.ColorLinPremul{1.0, 0.0, 0.0, 1.0}
+	red := sg.ColorLinPremul{1.0, 0.0, 0.0, 0.0}
 	blue := sg.ColorLinPremul{0.0, 1.0, 0.0, 1.0}
 	green := sg.ColorLinPremul{0.0, 0.0, 1.0, 1.0}
 
