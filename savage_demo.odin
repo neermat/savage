@@ -192,15 +192,15 @@ draw_triangle_page :: proc(input: Input) {
 	if count != triangle_page.switch_counter {
 		sg.fill(bg_color, &render_target)
 		triangle_page.switch_counter = count
-		// triangle[0].x = rand.float32_range(0, f32(render_target.w))
-		// triangle[0].y = rand.float32_range(0, f32(render_target.h))
-		// triangle[1].x = rand.float32_range(0, f32(render_target.w))
-		// triangle[1].y = rand.float32_range(0, f32(render_target.h))
-		// triangle[2].x = rand.float32_range(0, f32(render_target.w))
-		// triangle[2].y = rand.float32_range(0, f32(render_target.h))
-		triangle[0] = {193.19, 112.26}
-		triangle[1] = {191.95, 1.16}
-		triangle[2] = {149.38, 144.37}
+		triangle[0].x = rand.float32_range(0, f32(render_target.w))
+		triangle[0].y = rand.float32_range(0, f32(render_target.h))
+		triangle[1].x = rand.float32_range(0, f32(render_target.w))
+		triangle[1].y = rand.float32_range(0, f32(render_target.h))
+		triangle[2].x = rand.float32_range(0, f32(render_target.w))
+		triangle[2].y = rand.float32_range(0, f32(render_target.h))
+		// triangle[0] = {193.19, 112.26}
+		// triangle[1] = {191.95, 1.16}
+		// triangle[2] = {149.38, 144.37}
 		fmt.printfln("Triangle Sampled: %v", triangle^)
 	}
 	sg.rasterize_triangle_3colors(triangle^, {red, blue, green}, &render_target)
@@ -305,7 +305,7 @@ draw_path_page :: proc(input: Input) {
 	count := int(input.time / path_page.switch_duration)
 	path := &path_page.path
 
-	n := rand.int_range(3, 8)
+	n := rand.int_range(3, 12)
 	sampled_angle: f32
 	angle_bin_size: f32 = 2 * math.PI / f32(n)
 	sampled_length: f32

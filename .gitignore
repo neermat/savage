@@ -2,9 +2,7 @@
 notes/
 
 # Editors
-.idea/
 .vscode/
-.zed/
 
 # Build output
 bin/
