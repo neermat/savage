@@ -1,0 +1,31 @@
+[
+  {
+    "label": "run (debug)",
+    "command": "odin run . -debug -out:bin/savage_demo",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "run (release)",
+    "command": "odin run . -o:speed -out:bin/savage_demo",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "build (debug)",
+    "command": "odin build . -debug -out:bin/savage_demo",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "test savage",
+    "command": "odin test savage -debug -out:bin/savage_tests",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "run quick_tests",
+    "command": "odin run quick_tests -debug -out:bin/quick_tests",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]
