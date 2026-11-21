@@ -8,7 +8,7 @@
     "env": { "OS_ACTIVITY_MODE": "disable" },
     "build": {
       "command": "odin",
-      "args": ["build", ".", "-debug", "-out:bin/savage_demo"],
+      "args": ["build", ".", "-debug", "-out:bin/savage_demo", "-error-pos-style:unix"],
       "cwd": "$ZED_WORKTREE_ROOT"
     }
   }
