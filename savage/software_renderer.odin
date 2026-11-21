@@ -306,12 +306,16 @@ print_active_edge_ids :: proc(prefix: string, edges: []ActiveEdge) {
 	fmt.print("\n")
 }
 
-// TODO: add support for multiple contours
+/*
+	Fill `path` with a given `color`.
+
+	Traditional scan conversion algorithm as described in
+	 "How the stb_truetype Anti-Aliased Software Rasterizer v2 Works"
+	 (https://www.nothings.org/gamedev/rasterize/)
+	 								by Sean Barrett
+*/
 fill_path :: proc(path: []vec2, color: ColorLinPremul, target: ^RenderTarget) {
-	// Reference:
-	// How the stb_truetype Anti-Aliased Software Rasterizer v2 Works
-	// https://www.nothings.org/gamedev/rasterize/
-	// 					-- Sean Barrett
+	// TODO: add support for multiple contours
 	n := len(path)
 
 	// 1. gather edges

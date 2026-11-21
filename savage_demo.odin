@@ -54,6 +54,7 @@ PathPage :: struct {
 	fill_color:      sg.ColorLinPremul,
 	switch_duration: f64,
 	switch_counter:  int,
+	half_pixel_offset: bool,
 }
 
 // CoordinateTestPage :: struct {}
@@ -211,6 +212,7 @@ draw_triangle_page :: proc(input: Input) {
 draw_quad_page :: proc(input: Input) {
 	// Draw quads as two rectangles - test for shared-edge gap
 	// clear the background
+
 	bg_color := sg.to_linear_premul({40, 40, 80, 255})
 	sg.clear_render_target(bg_color, &render_target)
 	fc := &quad_page.fill_color
@@ -305,6 +307,24 @@ draw_path_page :: proc(input: Input) {
 	count := int(input.time / path_page.switch_duration)
 	path := &path_page.path
 
+	num_p_releases : int
+	#reverse for key_event in input.key_events {
+		// Press P for toggling the half pixel offset
+		if key_event.key == .P && key_event.action == .RELEASE {
+			num_p_releases += 1
+		}
+	}
+
+	if num_p_releases % 2 != 0 {
+		path_page.half_pixel_offset = !path_page.half_pixel_offset
+	}
+
+	pixel_offset : f32 = 0
+	if path_page.half_pixel_offset {
+		pixel_offset = 0.5
+	}
+
+
 	n := rand.int_range(3, 20)
 	sampled_angle: f32
 	angle_bin_size: f32 = 2 * math.PI / f32(n)
@@ -362,6 +382,9 @@ draw_path_page :: proc(input: Input) {
 			path^ = pts[:]
 			fc^ = sg.to_linear_premul({150, 150, 0, 255})
 		}
+	}
+	for &pt in path {
+		pt = {math.floor(pt.x), math.floor(pt.y)} + pixel_offset
 	}
 	sg.fill_path(path^, fc^, &render_target)
 }
