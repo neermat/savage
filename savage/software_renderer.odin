@@ -16,13 +16,7 @@ RenderTarget :: struct {
 	h:    int,
 }
 
-Style :: struct {
-	stroke_color: Color,
-	fill_color:   Color,
-	stroke_width: f32,
-	miter_limit:  f32,
-}
-
+// ===== Color Utils ======
 
 // TODO: @optim We could also try storing the mapping from [0, 255] -> f16/f32; SIMD
 to_linear_premul :: proc(color: Color) -> ColorLinPremul {
@@ -60,26 +54,41 @@ to_srgb :: proc(color_linear: ColorLinPremul) -> Color {
 	return color_out
 }
 
-// NOTE: equivalent to mixing with {0, 0, 0, 1 - scale}
-add_colors :: proc(color_a: ColorLinPremul, color_b: ColorLinPremul) -> ColorLinPremul {
-	color_out: ColorLinPremul
-	color_out.r = color_a.r + color_b.r
-	color_out.g = color_a.g + color_b.g
-	color_out.b = color_a.b + color_b.b
-	color_out.a = color_a.a + color_b.a
-	return color_out
-
+mix_colors :: proc(colors: [$N]ColorLinPremul, weights: [N]f32) -> ColorLinPremul {
+	color: ColorLinPremul
+	for i in 0 ..< N {
+		color = color + colors[i] * f16(weights[i])
+	}
+	return color
 }
 
-// NOTE: equivalent to mixing with {0, 0, 0, 1 - scale}
-scale_color :: proc(color: ColorLinPremul, scale: f16) -> ColorLinPremul {
-	color_out: ColorLinPremul
-	color_out.r = scale * color.r
-	color_out.g = scale * color.g
-	color_out.b = scale * color.b
-	color_out.a = scale * color.a
-	return color_out
 
+// ===== Interpolators ======
+
+Interpolator :: struct {
+	val: f32,
+	dx:  f32,
+	dy:  f32,
+}
+
+interp_increment_x :: proc(interp: ^Interpolator) {
+	interp.val += interp.dy
+}
+
+interp_decrement_x :: proc(interp: ^Interpolator) {
+	interp.val -= interp.dy
+}
+
+interp_increment_y :: proc(interp: ^Interpolator) {
+	interp.val -= interp.dx
+}
+
+interp_decrement_y :: proc(interp: ^Interpolator) {
+	interp.val += interp.dx
+}
+
+interp_update_xy :: proc(interp: ^Interpolator, x: f32, y: f32) {
+	interp.val += x * interp.dy - y * interp.dx
 }
 
 // TODO: @optim SIMD can help here?
@@ -408,8 +417,8 @@ rasterize_hariline_wu :: proc(p1: vec2, p2: vec2, color: ColorLinPremul, target:
 		y_i_low = math.floor(y_i)
 		y_i_high = y_i_low + 1
 		d_a = f16(y_i - y_i_low)
-		color_high = scale_color(color, d_a)
-		color_low = scale_color(color, 1 - d_a)
+		color_high = color * d_a
+		color_low = color * (1 - d_a)
 		if is_x_dominant {
 			color_pixel(x_i, int(y_i_low), color_low, target)
 			color_pixel(x_i, int(y_i_high), color_high, target)
@@ -544,40 +553,6 @@ test_half_plane :: proc(hplane: half_plane, test_point: vec2) -> bool {
 }
 
 
-Interpolator :: struct {
-	val: f32,
-	dx:  f32,
-	dy:  f32,
-}
-
-interp_increment_x :: proc(interp: ^Interpolator) {
-	interp.val += interp.dy
-}
-
-interp_decrement_x :: proc(interp: ^Interpolator) {
-	interp.val -= interp.dy
-}
-
-interp_increment_y :: proc(interp: ^Interpolator) {
-	interp.val -= interp.dx
-}
-
-interp_decrement_y :: proc(interp: ^Interpolator) {
-	interp.val += interp.dx
-}
-
-interp_update_xy :: proc(interp: ^Interpolator, x: f32, y: f32) {
-	interp.val += x * interp.dy - y * interp.dx
-}
-
-mix_colors :: proc(colors: [$N]ColorLinPremul, weights: [N]f32) -> ColorLinPremul {
-	color: ColorLinPremul
-	// fmt.printfln("weights: %v", weights)
-	for i in 0 ..< N {
-		color = add_colors(color, scale_color(colors[i], f16(weights[i])))
-	}
-	return color
-}
 
 
 // TODO: use proper polymorphism and/or merge with the one color one
