@@ -62,6 +62,18 @@ mix_colors :: proc(colors: [$N]ColorLinPremul, weights: [N]f32) -> ColorLinPremu
 	return color
 }
 
+// TODO: @optim SIMD can help here?
+blend_color :: proc(color_bot: ColorLinPremul, color_top: ColorLinPremul) -> ColorLinPremul {
+	color_out: ColorLinPremul
+	return color_top + (1.0 - color_top.a) * color_bot
+}
+
+clear_render_target :: proc(color: ColorLinPremul, target: ^RenderTarget) {
+	for &pixel in target.data {
+		pixel = blend_color(pixel, color)
+	}
+}
+
 
 // ===== Interpolators ======
 
@@ -91,29 +103,12 @@ interp_update_xy :: proc(interp: ^Interpolator, x: f32, y: f32) {
 	interp.val += x * interp.dy - y * interp.dx
 }
 
-// TODO: @optim SIMD can help here?
-composite_over :: proc(color_bot: ColorLinPremul, color_top: ColorLinPremul) -> ColorLinPremul {
-	color_out: ColorLinPremul
-	k := 1.0 - color_top.a
-	color_out.r = color_top.r + k * color_bot.r
-	color_out.g = color_top.g + k * color_bot.g
-	color_out.b = color_top.b + k * color_bot.b
-	color_out.a = color_top.a + k * color_bot.a
-	return color_out
-}
-
-
-fill :: proc(color: ColorLinPremul, target: ^RenderTarget) {
-	for &pixel in target.data {
-		pixel = composite_over(pixel, color)
-	}
-}
 
 color_pixel :: proc(x: int, y: int, color: ColorLinPremul, target: ^RenderTarget) {
 	if x >= 0 && x < target.w {
 		if y >= 0 && y < target.h {
 			loc := x + y * target.w
-			target.data[loc] = composite_over(target.data[loc], color)
+			target.data[loc] = blend_color(target.data[loc], color)
 		}
 	}
 }
@@ -276,14 +271,23 @@ color_pixel :: proc(x: int, y: int, color: ColorLinPremul, target: ^RenderTarget
 
 ActiveEdge :: struct {
 	edge:           [2]vec2,
+	edge_id:        int, // remove if not needed except for debugging
 	x_intersection: f32,
+	inverse_slope:  f32,
 }
 
-get_x_intersection :: proc(line: [2]vec2, y: f32) -> f32 {
-	x1, y1 := line[0].x, line[0].y
-	x2, y2 := line[1].x, line[1].y
-	x := x1 + (y - y1) * (x2 - x1) / (y2 - y1)
-	return x
+// Get x value at some y and inverse slope for an edge \
+// Note: It assumes that the edge is not horizontal
+get_edge_params :: proc(end_points: [2]vec2, y: f32) -> (x: f32, slope_inv: f32) {
+	p1, p2 := end_points[0], end_points[1]
+	diff := p2 - p1
+	slope_inv = diff.x / diff.y
+	x = p1.x + (y - p1.y) * slope_inv
+	return x, slope_inv
+}
+
+active_edge_increment_y :: proc(edge: ^ActiveEdge) {
+	edge.x_intersection += edge.inverse_slope
 }
 
 edge_miny_cmp :: proc(edge_a, edge_b: [2]vec2) -> bool {
@@ -294,8 +298,15 @@ edge_x_intersection_cmp :: proc(aedge_a, aedge_b: ActiveEdge) -> bool {
 	return aedge_a.x_intersection < aedge_b.x_intersection
 }
 
+print_active_edge_ids :: proc(prefix: string, edges: []ActiveEdge) {
+	fmt.printf("%s", prefix)
+	for ae in edges {
+		fmt.printf("[%d]: %.2f,", ae.edge_id, ae.x_intersection)
+	}
+	fmt.print("\n")
+}
+
 // TODO: add support for multiple contours
-// TODO: take allocator as parameter
 fill_path :: proc(path: []vec2, color: ColorLinPremul, target: ^RenderTarget) {
 	// Reference:
 	// How the stb_truetype Anti-Aliased Software Rasterizer v2 Works
@@ -304,11 +315,19 @@ fill_path :: proc(path: []vec2, color: ColorLinPremul, target: ^RenderTarget) {
 	n := len(path)
 
 	// 1. gather edges
-	edges := make([][2]vec2, n)
+	all_edges := make([][2]vec2, n)
+	defer delete(all_edges)
+
+	edge_count: int
 	for i in 0 ..< n {
-		edges[i] = {path[i], path[(i + 1) % n]}
+		if path[i].y != path[(i + 1) % n].y { 	// skip horizontal edges
+			all_edges[edge_count] = {path[i], path[(i + 1) % n]}
+			edge_count += 1
+		}
 	}
-	defer delete(edges)
+
+	edges := all_edges[:edge_count]
+	if edge_count == 0 do return
 
 	// 2. sort by vertex
 	slice.sort_by(edges, edge_miny_cmp)
@@ -316,23 +335,35 @@ fill_path :: proc(path: []vec2, color: ColorLinPremul, target: ^RenderTarget) {
 	// 3. Move a scanline in +y direction
 	scanline_start := min(edges[0][0].y, edges[0][1].y)
 	scanline_y := math.floor(scanline_start)
+
+	// TODO: take allocator as parameter
 	active_edges: [dynamic]ActiveEdge
 	defer delete(active_edges)
+
 	edge_head: int = 0
 	for {
-		// TODO: use incremental append instead of starting afresh
-		clear(&active_edges)
 		// add to active edges (intersecting scanline)
 		for edge_id in edge_head ..< len(edges) {
 			edge := edges[edge_id]
 			// if edge crosses scanline add to the list
 			if edge[0].y < scanline_y || edge[1].y < scanline_y {
+				x_intersection, slope_inv := get_edge_params(edge, scanline_y)
 				append(
 					&active_edges,
-					ActiveEdge{edge = edge, x_intersection = get_x_intersection(edge, scanline_y)},
+					ActiveEdge {
+						edge = edge,
+						edge_id = edge_id,
+						x_intersection = x_intersection,
+						inverse_slope = slope_inv,
+					},
 				)
+				edge_head += 1
+			} else {
+				break
 			}
 		}
+		// print_active_edge_ids("(after-add) Active Edges: ", active_edges[:])
+
 		// remove edges past scanline
 		#reverse for active_edge, ae_id in active_edges {
 			edge := active_edge.edge
@@ -341,11 +372,16 @@ fill_path :: proc(path: []vec2, color: ColorLinPremul, target: ^RenderTarget) {
 			}
 		}
 
+		// print_active_edge_ids("(after-remove) Active Edges: ", active_edges[:])
+
+		if len(active_edges) == 0 && edge_head >= len(edges) do break
+
+
 		// sort active edges by their x intersection
-		// TODO: replace by incremental sort
-		slice.sort_by(active_edges[:], edge_x_intersection_cmp)
-		fill: bool = true
+		slice.stable_sort_by(active_edges[:], edge_x_intersection_cmp)
+
 		// Go over the intersections & Alternative color the pixels
+		fill: bool = true
 		for active_edge, ae_id in active_edges {
 			x_start := int(math.round(active_edge.x_intersection))
 			x_end: int
@@ -365,6 +401,12 @@ fill_path :: proc(path: []vec2, color: ColorLinPremul, target: ^RenderTarget) {
 		if int(scanline_y) >= target.h {
 			break
 		}
+
+		// Advance every active edge to next scanline
+		for &active_edge in active_edges {
+			active_edge_increment_y(&active_edge)
+		}
+
 	}
 }
 
@@ -551,8 +593,6 @@ test_half_plane :: proc(hplane: half_plane, test_point: vec2) -> bool {
 	val := hplane.line_eqn_a * test_point.x + hplane.line_eqn_b * test_point.y + hplane.line_eqn_c
 	return (val < 0) == hplane.reference_sign
 }
-
-
 
 
 // TODO: use proper polymorphism and/or merge with the one color one

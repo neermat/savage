@@ -5,10 +5,10 @@ import "core:math"
 import "core:math/rand"
 import sg "savage"
 
-DEFAULT_W :: 200
-DEFAULT_H :: 200
-PIXEL_SCALE_X :: 8
-PIXEL_SCALE_Y :: 8
+DEFAULT_W :: 1600
+DEFAULT_H :: 1600
+PIXEL_SCALE_X :: 1
+PIXEL_SCALE_Y :: 1
 TITLE :: "Savage Demo"
 
 AppState :: struct {
@@ -149,7 +149,7 @@ draw_lines_page :: proc(input: Input) {
 	w := f32(render_target.w)
 	h := f32(render_target.h)
 	bg_color := sg.to_linear_premul({40, 40, 80, 255})
-	sg.fill(bg_color, &render_target)
+	sg.clear_render_target(bg_color, &render_target)
 	center: [2]f32 = {0.5 * w, 0.5 * h}
 	num_lines: int = 30
 	angle_step: f32 = 2.0 * math.PI / f32(num_lines)
@@ -181,7 +181,7 @@ draw_triangle_page :: proc(input: Input) {
 	// clear the background
 	bg_color := sg.to_linear_premul({40, 40, 80, 255})
 	fill_color := sg.to_linear_premul({255, 128, 0, 255})
-	sg.fill(bg_color, &render_target)
+	sg.clear_render_target(bg_color, &render_target)
 
 	red := sg.to_linear_premul({255, 0, 0, 255})
 	blue := sg.to_linear_premul({0, 255, 0, 255})
@@ -190,7 +190,7 @@ draw_triangle_page :: proc(input: Input) {
 	count := int(input.time / triangle_page.switch_duration)
 	triangle := &triangle_page.triangle
 	if count != triangle_page.switch_counter {
-		sg.fill(bg_color, &render_target)
+		sg.clear_render_target(bg_color, &render_target)
 		triangle_page.switch_counter = count
 		triangle[0].x = rand.float32_range(0, f32(render_target.w))
 		triangle[0].y = rand.float32_range(0, f32(render_target.h))
@@ -212,7 +212,7 @@ draw_quad_page :: proc(input: Input) {
 	// Draw quads as two rectangles - test for shared-edge gap
 	// clear the background
 	bg_color := sg.to_linear_premul({40, 40, 80, 255})
-	sg.fill(bg_color, &render_target)
+	sg.clear_render_target(bg_color, &render_target)
 	fc := &quad_page.fill_color
 
 	red := sg.to_linear_premul({255, 0, 0, 255})
@@ -299,13 +299,13 @@ draw_quad_page :: proc(input: Input) {
 
 draw_path_page :: proc(input: Input) {
 	bg_color := sg.to_linear_premul({40, 40, 80, 255})
-	sg.fill(bg_color, &render_target)
+	sg.clear_render_target(bg_color, &render_target)
 	fc := &path_page.fill_color
 
 	count := int(input.time / path_page.switch_duration)
 	path := &path_page.path
 
-	n := rand.int_range(3, 12)
+	n := rand.int_range(3, 20)
 	sampled_angle: f32
 	angle_bin_size: f32 = 2 * math.PI / f32(n)
 	sampled_length: f32
@@ -314,14 +314,14 @@ draw_path_page :: proc(input: Input) {
 		delete(path^)
 		path^ = make([]vec2, n)
 		path_page.switch_counter = count
-		if count % 2 == 0 {
+		if count % 3 == 0 {
 			// truly random points
 			for i in 0 ..< n {
 				path[i].x = rand.float32_range(0, w - 1)
 				path[i].y = rand.float32_range(0, h - 1)
 			}
 			fc^ = sg.to_linear_premul({128, 255, 0, 255})
-		} else {
+		} else if count % 3 == 1 {
 			// sampling non self-intersecting
 			for i in 0 ..< n {
 				sampled_angle = rand.float32_range(
@@ -333,6 +333,34 @@ draw_path_page :: proc(input: Input) {
 				path[i].y = 0.5 * h + sampled_length * math.sin(sampled_angle)
 			}
 			fc^ = sg.to_linear_premul({255, 128, 0, 255})
+		} else {
+			// sampling non self-intersecting (rectangularized)
+			keypoints := make([]vec2, n)
+			defer delete(keypoints)
+			for i in 0 ..< n {
+				sampled_angle = rand.float32_range(
+					f32(i) * angle_bin_size,
+					f32(i + 1) * angle_bin_size,
+				)
+				sampled_angle = (f32(i) + 0.5) * angle_bin_size
+				sampled_length = rand.float32_range(0.4, 0.45) * f32(math.min(w, h))
+				x_val := 0.5 * w + sampled_length * math.cos(sampled_angle)
+				y_val := 0.5 * h + sampled_length * math.sin(sampled_angle)
+				keypoints[i] = {x_val, y_val}
+			}
+			EPS :: 1e-3
+			pts := make([dynamic]vec2, 0, 2 * n)
+			for i in 0 ..< n {
+				prev_kp := keypoints[(i + n - 1) % n]
+				curr_kp := keypoints[i]
+				if abs(curr_kp.x - prev_kp.x) > EPS && abs(curr_kp.y - prev_kp.y) > EPS {
+					append(&pts, vec2{curr_kp.x, prev_kp.y})
+				}
+				append(&pts, curr_kp)
+			}
+			delete(path^)
+			path^ = pts[:]
+			fc^ = sg.to_linear_premul({150, 150, 0, 255})
 		}
 	}
 	sg.fill_path(path^, fc^, &render_target)
